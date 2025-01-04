@@ -161,3 +161,20 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "cye", "ちぇ" },
     .{ "cyo", "ちょ" },
 });
+
+pub const SmallTransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
+    .{ "ke", "ヶ" },
+    .{ "ka", "ヵ" },
+
+    .{ "a", "ぁ" },
+    .{ "i", "ぃ" },
+    .{ "u", "ぅ" },
+    .{ "e", "ぇ" },
+    .{ "o", "ぉ" },
+
+    .{ "ya", "ゃ" },
+    .{ "yi", "ぃ" },
+    .{ "yu", "ゅ" },
+    .{ "ye", "ぇ" },
+    .{ "yo", "ょ" },
+});
