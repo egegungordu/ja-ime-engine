@@ -49,7 +49,7 @@ pub fn process(self: *Self, input: u8) !Result {
                 self.current_state = .{ .SingleConsonant = v };
             },
             'n' => self.current_state = .NConsonant,
-            'a', 'u', 'i', 'e', 'o' => |v| {
+            'a', 'i', 'u', 'e', 'o' => |v| {
                 const val = self.getHiragana(&[1]u8{v});
                 try self.output.appendSlice(val);
                 self.goToStart();
@@ -60,7 +60,7 @@ pub fn process(self: *Self, input: u8) !Result {
             else => {},
         },
         .SingleConsonant => |consonant| switch (input) {
-            'a', 'u', 'i', 'e', 'o' => |v| {
+            'a', 'i', 'u', 'e', 'o' => |v| {
                 const combined_val = self.getHiragana(&[2]u8{ consonant, v });
                 try self.output.appendSlice(combined_val);
                 self.goToStart();
@@ -90,7 +90,7 @@ pub fn process(self: *Self, input: u8) !Result {
             else => self.goToStart(),
         },
         .PalatalizedConsonant => |consonant| switch (input) {
-            'a', 'u', 'i', 'e', 'o' => |v| {
+            'a', 'i', 'u', 'e', 'o' => |v| {
                 const combined_val = blk: {
                     if (consonant.@"1" == null) {
                         break :blk self.getHiragana(&[3]u8{ consonant.@"0", 'y', v });
@@ -104,7 +104,7 @@ pub fn process(self: *Self, input: u8) !Result {
             else => self.goToStart(),
         },
         .NConsonant => switch (input) {
-            'a', 'u', 'i', 'e', 'o' => |v| {
+            'a', 'i', 'u', 'e', 'o' => |v| {
                 const combined_val = self.getHiragana(&[2]u8{ 'n', v });
                 try self.output.appendSlice(combined_val);
                 self.goToStart();
@@ -126,7 +126,7 @@ pub fn process(self: *Self, input: u8) !Result {
             // - Standalone → Output ん.
         },
         .ChConsonant => switch (input) {
-            'a', 'u', 'e', 'o', 'i' => |v| {
+            'a', 'i', 'u', 'e', 'o' => |v| {
                 const combined_val = self.getHiragana(&[3]u8{ 'c', 'h', v });
                 try self.output.appendSlice(combined_val);
                 self.goToStart();
@@ -137,7 +137,7 @@ pub fn process(self: *Self, input: u8) !Result {
             else => self.goToStart(),
         },
         .TsConsonant => switch (input) {
-            'a', 'u', 'e', 'o', 'i' => |v| {
+            'a', 'i', 'u', 'e', 'o' => |v| {
                 const combined_val = self.getHiragana(&[3]u8{ 't', 's', v });
                 try self.output.appendSlice(combined_val);
                 self.goToStart();
@@ -148,7 +148,7 @@ pub fn process(self: *Self, input: u8) !Result {
             else => self.goToStart(),
         },
         .ShConsonant => switch (input) {
-            'a', 'u', 'e', 'o', 'i' => |v| {
+            'a', 'i', 'u', 'e', 'o' => |v| {
                 const combined_val = self.getHiragana(&[3]u8{ 's', 'h', v });
                 try self.output.appendSlice(combined_val);
                 self.goToStart();
