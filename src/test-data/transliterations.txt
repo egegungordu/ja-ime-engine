@@ -1,0 +1,190 @@
+# Group 1: Basic vowels
+a あ
+i い
+u う
+e え
+o お
+
+# Group 2: Consonant + vowel combinations
+ka か
+ki き
+ku く
+ke け
+ko こ
+
+sa さ
+si し
+su す
+se せ
+so そ
+
+ta た
+ti ち
+tu つ
+te て
+to と
+
+na な
+ni に
+nu ぬ
+ne ね
+no の
+
+ha は
+hi ひ
+hu ふ
+he へ
+ho ほ
+
+ma ま
+mi み
+mu む
+me め
+mo も
+
+ya や
+yu ゆ
+yo よ
+
+ra ら
+ri り
+ru る
+re れ
+ro ろ
+
+wa わ
+wo を
+nn ん
+
+# Group 3: Modified consonants (with dakuten or handakuten)
+ga が
+gi ぎ
+gu ぐ
+ge げ
+go ご
+
+za ざ
+zi じ
+zu ず
+ze ぜ
+zo ぞ
+
+da だ
+di ぢ
+du づ
+de で
+do ど
+
+ba ば
+bi び
+bu ぶ
+be べ
+bo ぼ
+
+pa ぱ
+pi ぴ
+pu ぷ
+pe ぺ
+po ぽ
+
+# Group 4: Combinations with 'y' (ya, yu, yo combinations)
+kya きゃ
+kyi きぃ
+kyu きゅ
+kye きぇ
+kyo きょ
+
+nya にゃ
+nyi にぃ
+nyu にゅ
+nye にぇ
+nyo にょ
+
+hya ひゃ
+hyi ひぃ
+hyu ひゅ
+hye ひぇ
+hyo ひょ
+
+mya みゃ
+myi みぃ
+myu みゅ
+mye みぇ
+myo みょ
+
+rya りゃ
+ryi りぃ
+ryu りゅ
+rye りぇ
+ryo りょ
+
+# Group 5: Other consonants
+tha てゃ
+thi てぃ
+thu てゅ
+the てぇ
+tho てょ
+
+tsa つぁ
+tsi つぃ
+tsu つ
+tse つぇ
+tso つぉ
+
+sha しゃ
+shi し
+shu しゅ
+sho しょ
+she しぇ
+
+cha ちゃ
+chi ち
+chu ちゅ
+che ちぇ
+cho ちょ
+
+qa くぁ
+qi くぃ
+qu く
+qe くぇ
+qo くぉ
+
+ja じゃ
+ji じ
+ju じゅ
+je じぇ
+jo じょ
+
+# Group 6: Small kana and special combinations (x-prefixed)
+xtsu っ
+xke ヶ
+xka ヵ
+
+xa ぁ
+xi ぃ
+xu ぅ
+xe ぇ
+xo ぉ
+
+xya ゃ
+xyi ぃ
+xyu ゅ
+xye ぇ
+xyo ょ
+
+# Group 7: Small kana and special combinations (l-prefixed)
+ltsu っ
+lke ヶ
+lka ヵ
+
+la ぁ
+li ぃ
+lu ぅ
+le ぇ
+lo ぉ
+
+lya ゃ
+lyi ぃ
+lyu ゅ
+lye ぇ
+lyo ょ
