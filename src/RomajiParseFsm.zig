@@ -46,7 +46,7 @@ pub fn process(self: *Self, input: u8) !Result {
 
     switch (self.current_state) {
         .Start => switch (input) {
-            'k', 'q', 's', 't', 'h', 'm', 'y', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
+            'k', 'q', 's', 't', 'h', 'm', 'y', 'r', 'v', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
                 self.current_state = .{ .SingleConsonant = v };
                 try self.appendChar(v);
             },
@@ -55,7 +55,7 @@ pub fn process(self: *Self, input: u8) !Result {
                 self.current_state = .NConsonant;
             },
             'a', 'i', 'u', 'e', 'o' => |v| {
-                try self.appendKana(&[1]u8{v});
+                _ = try self.appendKana(&[1]u8{v}, 0);
                 self.resetState();
             },
             'l', 'x' => |v| {
@@ -66,23 +66,24 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .SingleConsonant => |consonant| switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                self.removeLast(1);
-                try self.appendKana(&[2]u8{ consonant, v });
+                _ = try self.appendKana(&[2]u8{ consonant, v }, 1);
                 self.resetState();
             },
             'y' => {
                 if (consonant == 'y') {
+                    self.removeLast(1);
                     try self.output.appendSlice("っ");
                     self.current_state = .{ .SingleConsonant = 'y' };
                 } else {
                     self.current_state = .{ .PalatalizedConsonant = consonant };
                 }
+                try self.appendChar('y');
             },
             'n' => {
                 try self.appendChar('n');
                 self.current_state = .NConsonant;
             },
-            'k', 'q', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p' => |v| {
+            'k', 'q', 's', 't', 'h', 'm', 'r', 'v', 'w', 'g', 'j', 'z', 'd', 'b', 'p' => |v| {
                 if (v == consonant) {
                     self.removeLast(1);
                     try self.output.appendSlice("っ");
@@ -109,8 +110,9 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .PalatalizedConsonant => |consonant| switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                self.removeLast(2);
-                try self.appendKana(&[3]u8{ consonant, 'y', v });
+                if (!try self.appendKana(&[3]u8{ consonant, 'y', v }, 2)) {
+                    _ = try self.appendKana(&[1]u8{v}, 0);
+                }
                 self.resetState();
             },
             'l', 'x' => |v| {
@@ -122,23 +124,20 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .NConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                self.removeLast(1);
-                try self.appendKana(&[2]u8{ 'n', v });
+                _ = try self.appendKana(&[2]u8{ 'n', v }, 1);
                 self.resetState();
             },
             'y' => {
                 try self.appendChar('y');
                 self.current_state = .{ .PalatalizedConsonant = 'n' };
             },
-            'k', 'q', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
-                self.removeLast(1);
-                try self.appendKana(&[1]u8{'n'});
+            'k', 'q', 's', 't', 'h', 'm', 'r', 'v', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
+                _ = try self.appendKana(&[1]u8{'n'}, 1);
                 try self.appendChar(v);
                 self.current_state = .{ .SingleConsonant = v };
             },
             'n' => {
-                self.removeLast(1);
-                try self.appendKana(&[1]u8{'n'});
+                _ = try self.appendKana(&[1]u8{'n'}, 1);
                 self.resetState();
             },
             'l', 'x' => |v| {
@@ -151,8 +150,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .ChConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                self.removeLast(2);
-                try self.appendKana(&[3]u8{ 'c', 'h', v });
+                _ = try self.appendKana(&[3]u8{ 'c', 'h', v }, 2);
                 self.resetState();
             },
             'l', 'x' => |v| {
@@ -167,8 +165,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .TsConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                self.removeLast(2);
-                try self.appendKana(&[3]u8{ 't', 's', v });
+                _ = try self.appendKana(&[3]u8{ 't', 's', v }, 2);
                 self.resetState();
             },
             'l', 'x' => |v| {
@@ -183,8 +180,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .ThConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                self.removeLast(2);
-                try self.appendKana(&[3]u8{ 't', 'h', v });
+                _ = try self.appendKana(&[3]u8{ 't', 'h', v }, 2);
                 self.resetState();
             },
             'l', 'x' => |v| {
@@ -199,8 +195,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .ShConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                self.removeLast(2);
-                try self.appendKana(&[3]u8{ 's', 'h', v });
+                _ = try self.appendKana(&[3]u8{ 's', 'h', v }, 2);
                 self.resetState();
             },
             'l', 'x' => |v| {
@@ -231,10 +226,13 @@ fn getHiragana(self: *Self, key: []const u8) ?[]const u8 {
     return hiragana_map.get(key);
 }
 
-fn appendKana(self: *Self, romaji: []const u8) !void {
+fn appendKana(self: *Self, romaji: []const u8, remove_last_n: usize) !bool {
     if (self.getHiragana(romaji)) |kana| {
+        self.removeLast(remove_last_n);
         try self.output.appendSlice(kana);
+        return true;
     }
+    return false;
 }
 
 fn appendChar(self: *Self, char: u8) !void {

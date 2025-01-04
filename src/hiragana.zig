@@ -149,17 +149,17 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     // Other
     .{ "ye", "いぇ" },
 
-    .{ "tha", "てゃ" },
-    .{ "thi", "てぃ" },
-    .{ "thu", "てゅ" },
-    .{ "the", "てぇ" },
-    .{ "tho", "てょ" },
-
     .{ "tsa", "つぁ" },
     .{ "tsi", "つぃ" },
     .{ "tsu", "つ" },
     .{ "tse", "つぇ" },
     .{ "tso", "つぉ" },
+
+    .{ "tha", "てゃ" },
+    .{ "thi", "てぃ" },
+    .{ "thu", "てゅ" },
+    .{ "the", "てぇ" },
+    .{ "tho", "てょ" },
 
     .{ "cha", "ちゃ" },
     .{ "chi", "ち" },
@@ -173,6 +173,42 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "she", "しぇ" },
     .{ "sho", "しょ" },
 
+    .{ "kwa", "くぁ" },
+    .{ "kwi", "くぃ" },
+    .{ "kwu", "くぅ" },
+    .{ "kwe", "くぇ" },
+    .{ "kwo", "くぉ" },
+
+    .{ "gwa", "ぐぁ" },
+    .{ "gwi", "ぐぃ" },
+    .{ "gwu", "ぐぅ" },
+    .{ "gwe", "ぐぇ" },
+    .{ "gwo", "ぐぉ" },
+
+    .{ "swa", "すぁ" },
+    .{ "swi", "すぃ" },
+    .{ "swu", "すぅ" },
+    .{ "swe", "すぇ" },
+    .{ "swo", "すぉ" },
+
+    .{ "zwa", "ずぁ" },
+    .{ "zwi", "ずぃ" },
+    .{ "zwu", "ずぅ" },
+    .{ "zwe", "ずぇ" },
+    .{ "zwo", "ずぉ" },
+
+    .{ "twa", "とぁ" },
+    .{ "twi", "とぃ" },
+    .{ "twu", "とぅ" },
+    .{ "twe", "とぇ" },
+    .{ "two", "とぉ" },
+
+    .{ "dwa", "どぁ" },
+    .{ "dwi", "どぃ" },
+    .{ "dwu", "どぅ" },
+    .{ "dwe", "どぇ" },
+    .{ "dwo", "どぉ" },
+
     .{ "qa", "くぁ" },
     .{ "qi", "くぃ" },
     .{ "qu", "く" },
@@ -184,6 +220,16 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ju", "じゅ" },
     .{ "je", "じぇ" },
     .{ "jo", "じょ" },
+
+    .{ "va", "ゔぁ" },
+    .{ "vi", "ゔぃ" },
+    .{ "vu", "ゔ" },
+    .{ "ve", "ゔぇ" },
+    .{ "vo", "ゔぉ" },
+
+    .{ "wi", "うぃ" },
+    .{ "wu", "う" },
+    .{ "we", "うぇ" },
 });
 
 pub const SmallTransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
