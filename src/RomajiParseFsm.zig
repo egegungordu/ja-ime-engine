@@ -45,13 +45,12 @@ pub fn process(self: *Self, input: u8) !Result {
 
     switch (self.current_state) {
         .Start => switch (input) {
-            'k', 's', 't', 'h', 'm', 'y', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
+            'k', 'q', 's', 't', 'h', 'm', 'y', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
                 self.current_state = .{ .SingleConsonant = v };
             },
             'n' => self.current_state = .NConsonant,
             'a', 'i', 'u', 'e', 'o' => |v| {
-                const val = self.getHiragana(&[1]u8{v});
-                try self.output.appendSlice(val);
+                try self.appendKana(&[1]u8{v});
                 self.goToStart();
             },
             'l', 'x' => {
@@ -61,8 +60,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .SingleConsonant => |consonant| switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                const combined_val = self.getHiragana(&[2]u8{ consonant, v });
-                try self.output.appendSlice(combined_val);
+                try self.appendKana(&[2]u8{ consonant, v });
                 self.goToStart();
             },
             'y' => {
@@ -73,7 +71,7 @@ pub fn process(self: *Self, input: u8) !Result {
                     self.current_state = .{ .PalatalizedConsonant = .{ consonant, null } };
                 }
             },
-            'k', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p' => |v| {
+            'k', 'q', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p' => |v| {
                 if (v == consonant) {
                     try self.output.appendSlice("っ");
                     self.current_state = .{ .SingleConsonant = v };
@@ -91,35 +89,29 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .PalatalizedConsonant => |consonant| switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                const combined_val = blk: {
-                    if (consonant.@"1" == null) {
-                        break :blk self.getHiragana(&[3]u8{ consonant.@"0", 'y', v });
-                    } else {
-                        break :blk self.getHiragana(&[4]u8{ consonant.@"0", consonant.@"1".?, 'y', v });
-                    }
-                };
-                try self.output.appendSlice(combined_val);
+                if (consonant.@"1" == null) {
+                    try self.appendKana(&[3]u8{ consonant.@"0", 'y', v });
+                } else {
+                    try self.appendKana(&[4]u8{ consonant.@"0", consonant.@"1".?, 'y', v });
+                }
                 self.goToStart();
             },
             else => self.goToStart(),
         },
         .NConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                const combined_val = self.getHiragana(&[2]u8{ 'n', v });
-                try self.output.appendSlice(combined_val);
+                try self.appendKana(&[2]u8{ 'n', v });
                 self.goToStart();
             },
             'y' => {
                 self.current_state = .{ .PalatalizedConsonant = .{ 'n', null } };
             },
-            'k', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
-                const val = self.getHiragana(&[1]u8{'n'});
-                try self.output.appendSlice(val);
+            'k', 'q', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
+                try self.appendKana(&[1]u8{'n'});
                 self.current_state = .{ .SingleConsonant = v };
             },
             'n' => {
-                const val = self.getHiragana(&[1]u8{'n'});
-                try self.output.appendSlice(val);
+                try self.appendKana(&[1]u8{'n'});
                 self.goToStart();
             },
             else => self.goToStart(),
@@ -127,8 +119,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .ChConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                const combined_val = self.getHiragana(&[3]u8{ 'c', 'h', v });
-                try self.output.appendSlice(combined_val);
+                try self.appendKana(&[3]u8{ 'c', 'h', v });
                 self.goToStart();
             },
             'y' => {
@@ -138,8 +129,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .TsConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                const combined_val = self.getHiragana(&[3]u8{ 't', 's', v });
-                try self.output.appendSlice(combined_val);
+                try self.appendKana(&[3]u8{ 't', 's', v });
                 self.goToStart();
             },
             's' => {
@@ -149,8 +139,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .ShConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                const combined_val = self.getHiragana(&[3]u8{ 's', 'h', v });
-                try self.output.appendSlice(combined_val);
+                try self.appendKana(&[3]u8{ 's', 'h', v });
                 self.goToStart();
             },
             'h' => {
@@ -168,9 +157,15 @@ fn goToStart(self: *Self) void {
     self.current_small_state = false;
 }
 
-fn getHiragana(self: Self, key: []const u8) []const u8 {
+fn getHiragana(self: Self, key: []const u8) ?[]const u8 {
     if (self.current_small_state) {
-        return small_hiragana_map.get(key) orelse hiragana_map.get(key).?;
+        return small_hiragana_map.get(key) orelse hiragana_map.get(key);
     }
-    return hiragana_map.get(key).?;
+    return hiragana_map.get(key);
+}
+
+fn appendKana(self: *Self, romaji: []const u8) !void {
+    if (self.getHiragana(romaji)) |kana| {
+        try self.output.appendSlice(kana);
+    }
 }
