@@ -1,4 +1,4 @@
-# zig-ime-ja
+# ja-ime-engine
 
 A Japanese IME (Input Method Editor) library for Zig projects, focusing on romaji to hiragana conversion.
 
@@ -17,7 +17,7 @@ zig fetch --save git+https://github.com/egegungordu/ja-ime-engine
 Then instantiate the dependency in your `build.zig`:
 
 ```zig
-const ime = b.dependency("zig-ime-ja", .{});
+const ime = b.dependency("ja-ime-engine", .{});
 exe.root_module.addImport("romaji_parser", ime.module("romaji_parser"));
 ```
 
