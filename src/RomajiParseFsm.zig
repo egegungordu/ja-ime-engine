@@ -2,6 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const hiragana_map = @import("hiragana.zig").TransliterationMap;
 const small_hiragana_map = @import("hiragana.zig").SmallTransliterationMap;
+const CharacterSets = @import("CharacterSets.zig");
 
 allocator: mem.Allocator,
 current_state: State,
@@ -14,26 +15,20 @@ const Self = @This();
 pub const State = union(enum) {
     Start,
     SingleConsonant: u8,
-    PalatalizedConsonant: u8,
+    LongConsonant: struct { u8, u8 },
     NConsonant,
-    ChConsonant,
-    TsConsonant,
-    ThConsonant,
-    ShConsonant,
 };
 
 pub const Result = struct { input: []const u8, output: []const u8 };
 
 pub fn init(allocator: mem.Allocator) !Self {
-    // zig fmt: off
-    return .{ 
-        .allocator = allocator, 
+    return .{
+        .allocator = allocator,
         .current_state = .Start,
         .current_small_state = false,
         .input = std.ArrayList(u8).init(allocator),
         .output = std.ArrayList(u8).init(allocator),
     };
-    // zig fmt: on
 }
 
 pub fn deinit(self: *Self) void {
@@ -41,176 +36,103 @@ pub fn deinit(self: *Self) void {
     self.output.deinit();
 }
 
+fn isVowel(char: u8) bool {
+    return CharacterSets.vowels.isSet(char);
+}
+
+fn isConsonant(char: u8) bool {
+    return CharacterSets.consonants.isSet(char);
+}
+
+fn isSmallMarker(char: u8) bool {
+    return CharacterSets.small_markers.isSet(char);
+}
+
 pub fn process(self: *Self, input: u8) !Result {
     try self.input.append(input);
 
     switch (self.current_state) {
-        .Start => switch (input) {
-            'k', 'q', 's', 't', 'h', 'm', 'y', 'r', 'v', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
-                self.current_state = .{ .SingleConsonant = v };
-                try self.appendChar(v);
-            },
-            'n' => {
-                try self.appendChar('n');
-                self.current_state = .NConsonant;
-            },
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                _ = try self.appendKana(&[1]u8{v}, 0);
-                self.resetState();
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-            },
-            else => {},
-        },
-        .SingleConsonant => |consonant| switch (input) {
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                _ = try self.appendKana(&[2]u8{ consonant, v }, 1);
-                self.resetState();
-            },
-            'y' => {
-                if (consonant == 'y') {
-                    self.removeLast(1);
-                    try self.output.appendSlice("っ");
-                    self.current_state = .{ .SingleConsonant = 'y' };
-                } else {
-                    self.current_state = .{ .PalatalizedConsonant = consonant };
-                }
-                try self.appendChar('y');
-            },
-            'n' => {
-                try self.appendChar('n');
-                self.current_state = .NConsonant;
-            },
-            'k', 'q', 's', 't', 'h', 'm', 'r', 'v', 'w', 'g', 'j', 'z', 'd', 'b', 'p' => |v| {
-                if (v == consonant) {
-                    self.removeLast(1);
-                    try self.output.appendSlice("っ");
-                    self.current_state = .{ .SingleConsonant = v };
-                } else if (consonant == 'c' and v == 'h') {
-                    self.current_state = .ChConsonant;
-                } else if (consonant == 't' and v == 's') {
-                    self.current_state = .TsConsonant;
-                } else if (consonant == 't' and v == 'h') {
-                    self.current_state = .ThConsonant;
-                } else if (consonant == 's' and v == 'h') {
-                    self.current_state = .ShConsonant;
-                } else {
-                    self.current_state = .{ .SingleConsonant = v };
-                }
-                try self.appendChar(v);
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-                self.current_state = .Start;
-            },
-            else => self.resetState(),
-        },
-        .PalatalizedConsonant => |consonant| switch (input) {
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                if (!try self.appendKana(&[3]u8{ consonant, 'y', v }, 2)) {
-                    _ = try self.appendKana(&[1]u8{v}, 0);
-                }
-                self.resetState();
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-                self.current_state = .Start;
-            },
-            else => self.resetState(),
-        },
-        .NConsonant => switch (input) {
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                _ = try self.appendKana(&[2]u8{ 'n', v }, 1);
-                self.resetState();
-            },
-            'y' => {
-                try self.appendChar('y');
-                self.current_state = .{ .PalatalizedConsonant = 'n' };
-            },
-            'k', 'q', 's', 't', 'h', 'm', 'r', 'v', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
-                _ = try self.appendKana(&[1]u8{'n'}, 1);
-                try self.appendChar(v);
-                self.current_state = .{ .SingleConsonant = v };
-            },
-            'n' => {
-                _ = try self.appendKana(&[1]u8{'n'}, 1);
-                self.resetState();
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-                self.current_state = .Start;
-            },
-            else => self.resetState(),
-            // - Standalone → Output ん.
-        },
-        .ChConsonant => switch (input) {
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                _ = try self.appendKana(&[3]u8{ 'c', 'h', v }, 2);
-                self.resetState();
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-                self.current_state = .Start;
-            },
-            else => {
-                try self.appendChar(input);
-                self.resetState();
-            },
-        },
-        .TsConsonant => switch (input) {
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                _ = try self.appendKana(&[3]u8{ 't', 's', v }, 2);
-                self.resetState();
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-                self.current_state = .Start;
-            },
-            else => {
-                try self.appendChar(input);
-                self.resetState();
-            },
-        },
-        .ThConsonant => switch (input) {
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                _ = try self.appendKana(&[3]u8{ 't', 'h', v }, 2);
-                self.resetState();
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-                self.current_state = .Start;
-            },
-            else => {
-                try self.appendChar(input);
-                self.resetState();
-            },
-        },
-        .ShConsonant => switch (input) {
-            'a', 'i', 'u', 'e', 'o' => |v| {
-                _ = try self.appendKana(&[3]u8{ 's', 'h', v }, 2);
-                self.resetState();
-            },
-            'l', 'x' => |v| {
-                try self.appendChar(v);
-                self.current_small_state = true;
-                self.current_state = .Start;
-            },
-            else => {
-                try self.appendChar(input);
-                self.resetState();
-            },
-        },
+        .Start => try self.handleStartState(input),
+        .SingleConsonant => |consonant| try self.handleSingleConsonantState(consonant, input),
+        .NConsonant => try self.handleNConsonantState(input),
+        .LongConsonant => |consonants| try self.handleLongConsonantState(consonants, input),
     }
 
     return .{ .input = self.input.items, .output = self.output.items };
+}
+
+fn handleStartState(self: *Self, input: u8) !void {
+    if (isConsonant(input)) {
+        self.current_state = .{ .SingleConsonant = input };
+        try self.appendChar(input);
+    } else if (input == 'n') {
+        try self.appendChar('n');
+        self.current_state = .NConsonant;
+    } else if (isVowel(input)) {
+        _ = try self.appendKana(&[1]u8{input}, 0);
+        self.resetState();
+    } else if (isSmallMarker(input)) {
+        try self.appendChar(input);
+        self.current_small_state = true;
+    }
+}
+
+fn handleSingleConsonantState(self: *Self, consonant: u8, input: u8) !void {
+    if (isVowel(input)) {
+        _ = try self.appendKana(&[2]u8{ consonant, input }, 1);
+        self.resetState();
+    } else if (input == 'n') {
+        try self.appendChar('n');
+        self.current_state = .NConsonant;
+    } else if (isConsonant(input)) {
+        if (input == consonant) {
+            self.removeLast(1);
+            try self.output.appendSlice("っ");
+            self.current_state = .{ .SingleConsonant = input };
+        } else {
+            self.current_state = .{ .LongConsonant = .{ consonant, input } };
+        }
+        try self.appendChar(input);
+    } else if (isSmallMarker(input)) {
+        try self.appendChar(input);
+        self.current_small_state = true;
+        self.current_state = .Start;
+    } else {
+        self.resetState();
+    }
+}
+
+fn handleNConsonantState(self: *Self, input: u8) !void {
+    if (isVowel(input)) {
+        _ = try self.appendKana(&[2]u8{ 'n', input }, 1);
+        self.resetState();
+    } else if (input == 'y') {
+        try self.appendChar('y');
+        self.current_state = .{ .LongConsonant = .{ 'n', 'y' } };
+    } else if (isConsonant(input)) {
+        _ = try self.appendKana(&[1]u8{'n'}, 1);
+        try self.appendChar(input);
+        self.current_state = .{ .SingleConsonant = input };
+    } else if (input == 'n') {
+        _ = try self.appendKana(&[1]u8{'n'}, 1);
+        self.resetState();
+    } else if (isSmallMarker(input)) {
+        try self.appendChar(input);
+        self.current_small_state = true;
+        self.current_state = .Start;
+    } else {
+        self.resetState();
+    }
+}
+
+fn handleLongConsonantState(self: *Self, consonants: struct { u8, u8 }, input: u8) !void {
+    const c1 = consonants[0];
+    const c2 = consonants[1];
+    if (try self.appendKana(&[3]u8{ c1, c2, input }, 2)) {
+        self.resetState();
+    } else {
+        try self.handleSingleConsonantState(c2, input);
+    }
 }
 
 fn resetState(self: *Self) void {
@@ -219,9 +141,9 @@ fn resetState(self: *Self) void {
 }
 
 fn getHiragana(self: *Self, key: []const u8) ?[]const u8 {
-    if (self.current_small_state) {
+    if (self.current_small_state and small_hiragana_map.has(key)) {
         self.removeLast(1);
-        return small_hiragana_map.get(key) orelse hiragana_map.get(key);
+        return small_hiragana_map.get(key);
     }
     return hiragana_map.get(key);
 }

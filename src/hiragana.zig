@@ -91,7 +91,7 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "pe", "ぺ" },
     .{ "po", "ぽ" },
 
-    // Palatalized sounds
+    // Double consonants
     .{ "kya", "きゃ" },
     .{ "kyi", "きぃ"},
     .{ "kyu", "きゅ" },
@@ -145,9 +145,6 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "byu", "びゅ" },
     .{ "bye", "びぇ" },
     .{ "byo", "びょ" },
-
-    // Other
-    .{ "ye", "いぇ" },
 
     .{ "tsa", "つぁ" },
     .{ "tsi", "つぃ" },
@@ -230,6 +227,8 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "wi", "うぃ" },
     .{ "wu", "う" },
     .{ "we", "うぇ" },
+
+    .{ "ye", "いぇ" },
 });
 
 pub const SmallTransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
