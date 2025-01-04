@@ -36,7 +36,7 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
 
     .{ "ha", "は" },
     .{ "hi", "ひ" },
-    .{ "fu", "ふ" },
+    .{ "hu", "ふ" },
     .{ "he", "へ" },
     .{ "ho", "ほ" },
 
@@ -148,6 +148,12 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
 
     // Other
     .{ "ye", "いぇ" },
+
+    .{ "tha", "てゃ" },
+    .{ "thi", "てぃ" },
+    .{ "thu", "てゅ" },
+    .{ "the", "てぇ" },
+    .{ "tho", "てょ" },
 
     .{ "tsa", "つぁ" },
     .{ "tsi", "つぃ" },
