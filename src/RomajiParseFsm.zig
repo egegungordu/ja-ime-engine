@@ -18,6 +18,7 @@ pub const State = union(enum) {
     NConsonant,
     ChConsonant,
     TsConsonant,
+    ThConsonant,
     ShConsonant,
 };
 
@@ -79,6 +80,8 @@ pub fn process(self: *Self, input: u8) !Result {
                     self.current_state = .ChConsonant;
                 } else if (consonant == 't' and v == 's') {
                     self.current_state = .TsConsonant;
+                } else if (consonant == 't' and v == 'h') {
+                    self.current_state = .ThConsonant;
                 } else if (consonant == 's' and v == 'h') {
                     self.current_state = .ShConsonant;
                 } else {
@@ -137,6 +140,16 @@ pub fn process(self: *Self, input: u8) !Result {
             },
             else => self.goToStart(),
         },
+        .ThConsonant => switch (input) {
+            'a', 'i', 'u', 'e', 'o' => |v| {
+                try self.appendKana(&[3]u8{ 't', 'h', v });
+                self.goToStart();
+            },
+            'h' => {
+                self.current_state = .{ .PalatalizedConsonant = .{ 't', 'h' } };
+            },
+            else => self.goToStart(),
+        },
         .ShConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
                 try self.appendKana(&[3]u8{ 's', 'h', v });
@@ -167,5 +180,42 @@ fn getHiragana(self: Self, key: []const u8) ?[]const u8 {
 fn appendKana(self: *Self, romaji: []const u8) !void {
     if (self.getHiragana(romaji)) |kana| {
         try self.output.appendSlice(kana);
+    }
+}
+
+test "transliteration test" {
+    const file = @embedFile("./test-data/transliterations.txt");
+
+    var last_comment: ?[]const u8 = null;
+    var lines = std.mem.split(u8, file, "\n");
+
+    while (lines.next()) |line| {
+        const trimmed = std.mem.trim(u8, line, " \t\r");
+        if (trimmed.len == 0) continue;
+
+        if (std.mem.startsWith(u8, trimmed, "#")) {
+            last_comment = trimmed;
+            std.debug.print("\n{s}\n", .{trimmed});
+            continue;
+        }
+
+        var parts = std.mem.split(u8, trimmed, " ");
+        const romaji = parts.next() orelse continue;
+        const hiragana = parts.next() orelse continue;
+
+        // Create a FSM instance for testing
+        var fsm = try Self.init(std.testing.allocator);
+        defer fsm.deinit();
+
+        // Process each character of the romaji input
+        for (romaji) |c| {
+            _ = try fsm.process(c);
+        }
+
+        std.debug.print("Testing romaji: {s} -> hiragana: {s}\n", .{ romaji, hiragana });
+
+        // Verify both input collection and output conversion
+        try std.testing.expectEqualStrings(romaji, fsm.input.items);
+        try std.testing.expectEqualStrings(hiragana, fsm.output.items);
     }
 }
