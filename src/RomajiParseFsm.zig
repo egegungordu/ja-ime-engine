@@ -14,7 +14,7 @@ const Self = @This();
 pub const State = union(enum) {
     Start,
     SingleConsonant: u8,
-    PalatalizedConsonant: struct { u8, ?u8 },
+    PalatalizedConsonant: u8,
     NConsonant,
     ChConsonant,
     TsConsonant,
@@ -69,7 +69,7 @@ pub fn process(self: *Self, input: u8) !Result {
                     try self.output.appendSlice("っ");
                     self.current_state = .{ .SingleConsonant = 'y' };
                 } else {
-                    self.current_state = .{ .PalatalizedConsonant = .{ consonant, null } };
+                    self.current_state = .{ .PalatalizedConsonant = consonant };
                 }
             },
             'k', 'q', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p' => |v| {
@@ -92,11 +92,7 @@ pub fn process(self: *Self, input: u8) !Result {
         },
         .PalatalizedConsonant => |consonant| switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
-                if (consonant.@"1" == null) {
-                    try self.appendKana(&[3]u8{ consonant.@"0", 'y', v });
-                } else {
-                    try self.appendKana(&[4]u8{ consonant.@"0", consonant.@"1".?, 'y', v });
-                }
+                try self.appendKana(&[3]u8{ consonant, 'y', v });
                 self.goToStart();
             },
             else => self.goToStart(),
@@ -107,7 +103,7 @@ pub fn process(self: *Self, input: u8) !Result {
                 self.goToStart();
             },
             'y' => {
-                self.current_state = .{ .PalatalizedConsonant = .{ 'n', null } };
+                self.current_state = .{ .PalatalizedConsonant = 'n' };
             },
             'k', 'q', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
                 try self.appendKana(&[1]u8{'n'});
@@ -125,18 +121,12 @@ pub fn process(self: *Self, input: u8) !Result {
                 try self.appendKana(&[3]u8{ 'c', 'h', v });
                 self.goToStart();
             },
-            'y' => {
-                self.current_state = .{ .PalatalizedConsonant = .{ 'c', 'h' } };
-            },
             else => self.goToStart(),
         },
         .TsConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
                 try self.appendKana(&[3]u8{ 't', 's', v });
                 self.goToStart();
-            },
-            's' => {
-                self.current_state = .{ .PalatalizedConsonant = .{ 't', 's' } };
             },
             else => self.goToStart(),
         },
@@ -145,18 +135,12 @@ pub fn process(self: *Self, input: u8) !Result {
                 try self.appendKana(&[3]u8{ 't', 'h', v });
                 self.goToStart();
             },
-            'h' => {
-                self.current_state = .{ .PalatalizedConsonant = .{ 't', 'h' } };
-            },
             else => self.goToStart(),
         },
         .ShConsonant => switch (input) {
             'a', 'i', 'u', 'e', 'o' => |v| {
                 try self.appendKana(&[3]u8{ 's', 'h', v });
                 self.goToStart();
-            },
-            'h' => {
-                self.current_state = .{ .PalatalizedConsonant = .{ 's', 'h' } };
             },
             else => self.goToStart(),
         },
