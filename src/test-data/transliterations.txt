@@ -87,7 +87,7 @@ pu ぷ
 pe ぺ
 po ぽ
 
-# Group 4: Combinations with 'y' (ya, yu, yo combinations)
+# Group 4: Double consonants
 kya きゃ
 kyi きぃ
 kyu きゅ
@@ -118,12 +118,29 @@ ryu りゅ
 rye りぇ
 ryo りょ
 
-# Group 5: Other consonants
-tha てゃ
-thi てぃ
-thu てゅ
-the てぇ
-tho てょ
+tya ちゃ
+tyi ちぃ
+tyu ちゅ
+tye ちぇ
+tyo ちょ
+
+cya ちゃ
+cyi ちぃ
+cyu ちゅ 
+cye ちぇ
+cyo ちょ
+
+pya ぴゃ
+pyi ぴぃ
+pyu ぴゅ
+pye ぴぇ
+pyo ぴょ
+
+bya びゃ
+byi びぃ
+byu びゅ
+bye びぇ
+byo びょ
 
 tsa つぁ
 tsi つぃ
@@ -131,17 +148,59 @@ tsu つ
 tse つぇ
 tso つぉ
 
-sha しゃ
-shi し
-shu しゅ
-sho しょ
-she しぇ
+tha てゃ
+thi てぃ
+thu てゅ
+the てぇ
+tho てょ
 
 cha ちゃ
 chi ち
 chu ちゅ
 che ちぇ
 cho ちょ
+
+sha しゃ
+shi し
+shu しゅ
+sho しょ
+she しぇ
+
+kwa くぁ
+kwi くぃ
+kwu くぅ
+kwe くぇ
+kwo くぉ
+
+gwa ぐぁ
+gwi ぐぃ
+gwu ぐぅ
+gwe ぐぇ
+gwo ぐぉ
+
+swa すぁ
+swi すぃ
+swu すぅ
+swe すぇ
+swo すぉ
+
+zwa ずぁ
+zwi ずぃ
+zwu ずぅ
+zwe ずぇ
+zwo ずぉ
+
+twa とぁ
+twi とぃ
+twu とぅ
+twe とぇ
+two とぉ
+
+dwa どぁ
+dwi どぃ
+dwu どぅ
+dwe どぇ
+dwo どぉ
 
 qa くぁ
 qi くぃ
@@ -155,8 +214,21 @@ ju じゅ
 je じぇ
 jo じょ
 
-# Group 6: Small kana and special combinations (x-prefixed)
+va ゔぁ
+vi ゔぃ
+vu ゔ
+ve ゔぇ
+vo ゔぉ
+
+wi うぃ
+wu う
+we うぇ
+
+ye いぇ
+
+# Group 5: Small kana and special combinations (x-prefixed)
 xtsu っ
+
 xke ヶ
 xka ヵ
 
@@ -172,8 +244,9 @@ xyu ゅ
 xye ぇ
 xyo ょ
 
-# Group 7: Small kana and special combinations (l-prefixed)
+# Group 6: Small kana and special combinations (l-prefixed)
 ltsu っ
+
 lke ヶ
 lka ヵ
 
