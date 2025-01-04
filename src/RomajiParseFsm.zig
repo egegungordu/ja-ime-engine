@@ -1,9 +1,11 @@
 const std = @import("std");
 const mem = std.mem;
 const hiragana_map = @import("hiragana.zig").TransliterationMap;
+const small_hiragana_map = @import("hiragana.zig").SmallTransliterationMap;
 
 allocator: mem.Allocator,
 current_state: State,
+current_small_state: bool,
 input: std.ArrayList(u8),
 output: std.ArrayList(u8),
 
@@ -25,7 +27,8 @@ pub fn init(allocator: mem.Allocator) !Self {
     // zig fmt: off
     return .{ 
         .allocator = allocator, 
-        .current_state = .Start ,
+        .current_state = .Start,
+        .current_small_state = false,
         .input = std.ArrayList(u8).init(allocator),
         .output = std.ArrayList(u8).init(allocator),
     };
@@ -47,17 +50,20 @@ pub fn process(self: *Self, input: u8) !Result {
             },
             'n' => self.current_state = .NConsonant,
             'a', 'u', 'i', 'e', 'o' => |v| {
-                const val = hiragana_map.get(&[1]u8{v}).?;
+                const val = self.getHiragana(&[1]u8{v});
                 try self.output.appendSlice(val);
-                self.current_state = .Start;
+                self.goToStart();
+            },
+            'l', 'x' => {
+                self.current_small_state = true;
             },
             else => {},
         },
         .SingleConsonant => |consonant| switch (input) {
             'a', 'u', 'i', 'e', 'o' => |v| {
-                const combined_val = hiragana_map.get(&[2]u8{ consonant, v }).?;
+                const combined_val = self.getHiragana(&[2]u8{ consonant, v });
                 try self.output.appendSlice(combined_val);
-                self.current_state = .Start;
+                self.goToStart();
             },
             'y' => {
                 if (consonant == 'y') {
@@ -81,78 +87,90 @@ pub fn process(self: *Self, input: u8) !Result {
                     self.current_state = .{ .SingleConsonant = v };
                 }
             },
-            else => self.current_state = .Start,
+            else => self.goToStart(),
         },
         .PalatalizedConsonant => |consonant| switch (input) {
             'a', 'u', 'i', 'e', 'o' => |v| {
                 const combined_val = blk: {
                     if (consonant.@"1" == null) {
-                        break :blk hiragana_map.get(&[3]u8{ consonant.@"0", 'y', v }).?;
+                        break :blk self.getHiragana(&[3]u8{ consonant.@"0", 'y', v });
                     } else {
-                        break :blk hiragana_map.get(&[4]u8{ consonant.@"0", consonant.@"1".?, 'y', v }).?;
+                        break :blk self.getHiragana(&[4]u8{ consonant.@"0", consonant.@"1".?, 'y', v });
                     }
                 };
                 try self.output.appendSlice(combined_val);
-                self.current_state = .Start;
+                self.goToStart();
             },
-            else => self.current_state = .Start,
+            else => self.goToStart(),
         },
         .NConsonant => switch (input) {
             'a', 'u', 'i', 'e', 'o' => |v| {
-                const combined_val = hiragana_map.get(&[2]u8{ 'n', v }).?;
+                const combined_val = self.getHiragana(&[2]u8{ 'n', v });
                 try self.output.appendSlice(combined_val);
-                self.current_state = .Start;
+                self.goToStart();
             },
             'y' => {
                 self.current_state = .{ .PalatalizedConsonant = .{ 'n', null } };
             },
             'k', 's', 't', 'h', 'm', 'r', 'w', 'g', 'j', 'z', 'd', 'b', 'p', 'c' => |v| {
-                const val = hiragana_map.get(&[1]u8{'n'}).?;
+                const val = self.getHiragana(&[1]u8{'n'});
                 try self.output.appendSlice(val);
                 self.current_state = .{ .SingleConsonant = v };
             },
             'n' => {
-                const val = hiragana_map.get(&[1]u8{'n'}).?;
+                const val = self.getHiragana(&[1]u8{'n'});
                 try self.output.appendSlice(val);
-                self.current_state = .Start;
+                self.goToStart();
             },
-            else => self.current_state = .Start,
+            else => self.goToStart(),
             // - Standalone → Output ん.
         },
         .ChConsonant => switch (input) {
             'a', 'u', 'e', 'o', 'i' => |v| {
-                const combined_val = hiragana_map.get(&[3]u8{ 'c', 'h', v }).?;
+                const combined_val = self.getHiragana(&[3]u8{ 'c', 'h', v });
                 try self.output.appendSlice(combined_val);
-                self.current_state = .Start;
+                self.goToStart();
             },
             'y' => {
                 self.current_state = .{ .PalatalizedConsonant = .{ 'c', 'h' } };
             },
-            else => self.current_state = .Start,
+            else => self.goToStart(),
         },
         .TsConsonant => switch (input) {
             'a', 'u', 'e', 'o', 'i' => |v| {
-                const combined_val = hiragana_map.get(&[3]u8{ 't', 's', v }).?;
+                const combined_val = self.getHiragana(&[3]u8{ 't', 's', v });
                 try self.output.appendSlice(combined_val);
-                self.current_state = .Start;
+                self.goToStart();
             },
             's' => {
                 self.current_state = .{ .PalatalizedConsonant = .{ 't', 's' } };
             },
-            else => self.current_state = .Start,
+            else => self.goToStart(),
         },
         .ShConsonant => switch (input) {
             'a', 'u', 'e', 'o', 'i' => |v| {
-                const combined_val = hiragana_map.get(&[3]u8{ 's', 'h', v }).?;
+                const combined_val = self.getHiragana(&[3]u8{ 's', 'h', v });
                 try self.output.appendSlice(combined_val);
-                self.current_state = .Start;
+                self.goToStart();
             },
             'h' => {
                 self.current_state = .{ .PalatalizedConsonant = .{ 's', 'h' } };
             },
-            else => self.current_state = .Start,
+            else => self.goToStart(),
         },
     }
 
     return .{ .input = self.input.items, .output = self.output.items };
+}
+
+fn goToStart(self: *Self) void {
+    self.current_state = .Start;
+    self.current_small_state = false;
+}
+
+fn getHiragana(self: Self, key: []const u8) []const u8 {
+    if (self.current_small_state) {
+        return small_hiragana_map.get(key) orelse hiragana_map.get(key).?;
+    }
+    return hiragana_map.get(key).?;
 }

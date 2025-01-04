@@ -10,7 +10,7 @@ pub fn main() !void {
 
     var fsm = try RomajiParseFsm.init(arena.allocator());
 
-    const input = "yarerumonnnarayattemiro";
+    const input = "xyixyuxyaxkexkalkelkalilalulolgolkiliilxi";
 
     for (input) |c| {
         const result = try fsm.process(c);
