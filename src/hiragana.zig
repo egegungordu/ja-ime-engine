@@ -17,15 +17,13 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ko", "こ" },
 
     .{ "sa", "さ" },
-    .{ "shi", "し" },
+    .{ "si", "し" },
     .{ "su", "す" },
     .{ "se", "せ" },
     .{ "so", "そ" },
 
     .{ "ta", "た" },
-    .{ "chi", "ち" },
     .{ "ti", "ち" },
-    .{ "tsu", "つ" },
     .{ "tu", "つ" },
     .{ "te", "て" },
     .{ "to", "と" },
@@ -62,35 +60,6 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "wo", "を" },
     .{ "n", "ん" },
 
-    // Palatalized sounds
-    .{ "kya", "きゃ" },
-    .{ "kyu", "きゅ" },
-    .{ "kyo", "きょ" },
-
-    .{ "sha", "しゃ" },
-    .{ "shu", "しゅ" },
-    .{ "sho", "しょ" },
-
-    .{ "cha", "ちゃ" },
-    .{ "chu", "ちゅ" },
-    .{ "cho", "ちょ" },
-
-    .{ "nya", "にゃ" },
-    .{ "nyu", "にゅ" },
-    .{ "nyo", "にょ" },
-
-    .{ "hya", "ひゃ" },
-    .{ "hyu", "ひゅ" },
-    .{ "hyo", "ひょ" },
-
-    .{ "mya", "みゃ" },
-    .{ "myu", "みゅ" },
-    .{ "myo", "みょ" },
-
-    .{ "rya", "りゃ" },
-    .{ "ryu", "りゅ" },
-    .{ "ryo", "りょ" },
-
     // Voiced consonants
     .{ "ga", "が" },
     .{ "gi", "ぎ" },
@@ -99,7 +68,7 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "go", "ご" },
 
     .{ "za", "ざ" },
-    .{ "ji", "じ" },
+    .{ "zi", "じ" },
     .{ "zu", "ず" },
     .{ "ze", "ぜ" },
     .{ "zo", "ぞ" },
@@ -122,7 +91,64 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "pe", "ぺ" },
     .{ "po", "ぽ" },
 
-    // WTF
+    // Palatalized sounds
+    .{ "kya", "きゃ" },
+    .{ "kyi", "きぃ"},
+    .{ "kyu", "きゅ" },
+    .{ "kye", "きぇ" },
+    .{ "kyo", "きょ" },
+
+    .{ "nya", "にゃ" },
+    .{ "nyi", "にぃ" },
+    .{ "nyu", "にゅ" },
+    .{ "nye", "にぇ" },
+    .{ "nyo", "にょ" },
+
+    .{ "hya", "ひゃ" },
+    .{ "hyi", "ひぃ" },
+    .{ "hyu", "ひゅ" },
+    .{ "hye", "ひぇ" },
+    .{ "hyo", "ひょ" },
+
+    .{ "mya", "みゃ" },
+    .{ "myi", "みぃ" },
+    .{ "myu", "みゅ" },
+    .{ "mye", "みぇ" },
+    .{ "myo", "みょ" },
+
+    .{ "rya", "りゃ" },
+    .{ "ryi", "りぃ" },
+    .{ "ryu", "りゅ" },
+    .{ "rye", "りぇ" },
+    .{ "ryo", "りょ" },
+
+    .{ "tya", "ちゃ" },
+    .{ "tyi", "ちぃ" },
+    .{ "tyu", "ちゅ" },
+    .{ "tye", "ちぇ" },
+    .{ "tyo", "ちょ" },
+
+    .{ "cya", "ちゃ" },
+    .{ "cyi", "ちぃ" },
+    .{ "cyu", "ちゅ" },
+    .{ "cye", "ちぇ" },
+    .{ "cyo", "ちょ" },
+    
+    .{ "pya", "ぴゃ" },
+    .{ "pyi", "ぴぃ" },
+    .{ "pyu", "ぴゅ" },
+    .{ "pye", "ぴぇ" },
+    .{ "pyo", "ぴょ" },
+    
+    .{ "bya", "びゃ" },
+    .{ "byi", "びぃ" },
+    .{ "byu", "びゅ" },
+    .{ "bye", "びぇ" },
+    .{ "byo", "びょ" },
+
+    // Other
+    .{ "ye", "いぇ" },
+
     .{ "tsa", "つぁ" },
     .{ "tsi", "つぃ" },
     .{ "tsu", "つ" },
@@ -141,28 +167,22 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "she", "しぇ" },
     .{ "sho", "しょ" },
 
-    .{ "chya", "ちゃ" },
-    .{ "chyi", "ちぃ" },
-    .{ "chyu", "ちゅ" },
-    .{ "chye", "ちぇ" },
-    .{ "chyo", "ちょ" },
+    .{ "qa", "くぁ" },
+    .{ "qi", "くぃ" },
+    .{ "qu", "く" },
+    .{ "qe", "くぇ" },
+    .{ "qo", "くぉ" },
 
-    .{ "ye", "いぇ" },
-
-    .{ "tya", "ちゃ" },
-    .{ "tyi", "ちぃ" },
-    .{ "tyu", "ちゅ" },
-    .{ "tye", "ちぇ" },
-    .{ "tyo", "ちょ" },
-
-    .{ "cya", "ちゃ" },
-    .{ "cyi", "ちぃ" },
-    .{ "cyu", "ちゅ" },
-    .{ "cye", "ちぇ" },
-    .{ "cyo", "ちょ" },
+    .{ "ja", "じゃ" },
+    .{ "ji", "じ" },
+    .{ "ju", "じゅ" },
+    .{ "je", "じぇ" },
+    .{ "jo", "じょ" },
 });
 
 pub const SmallTransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
+    .{ "tsu", "っ" },
+
     .{ "ke", "ヶ" },
     .{ "ka", "ヵ" },
 
