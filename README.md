@@ -2,6 +2,29 @@
 
 A Japanese IME (Input Method Editor) library for Zig projects, focusing on romaji to hiragana conversion.
 
+<table>
+<tr>
+<td>
+
+On the **terminal** with libvaxis
+
+[View repository](https://github.com/egegungordu/ja-ime-terminal-demo)
+
+<img src=".github/assets/term-demo.gif" width="400" alt="Terminal demo">
+
+</td>
+<td>
+
+On the **web** with webassembly
+
+Coming soon!
+
+<img src=".github/assets/web-demo.jpg" width="400" alt="Web demo (AI slop)">
+
+</td>
+</tr>
+</table>
+
 ## Zig Version
 
 The minimum Zig version required is 0.13.0.
