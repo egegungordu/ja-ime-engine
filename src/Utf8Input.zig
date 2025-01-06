@@ -35,7 +35,7 @@ pub fn moveCursorForward(self: *Self, n: usize) void {
     self.cursor = it.i;
 }
 
-pub fn moveCursorBackward(self: *Self, n: usize) void {
+pub fn moveCursorBack(self: *Self, n: usize) void {
     const view = Utf8BidirectionalView.initUnchecked(self.buf.items);
     var it = view.iterator();
     it.i = self.cursor;
@@ -52,11 +52,11 @@ pub fn peekForward(self: *Self, n: usize) []const u8 {
     return it.peekForward(n);
 }
 
-pub fn peekBackward(self: *Self, n: usize) []const u8 {
+pub fn peekBack(self: *Self, n: usize) []const u8 {
     const view = Utf8BidirectionalView.initUnchecked(self.buf.items);
     var it = view.iterator();
     it.i = self.cursor;
-    return it.peekBackward(n);
+    return it.peekBack(n);
 }
 
 pub fn deleteForward(self: *Self, n: usize) void {
@@ -69,7 +69,7 @@ pub fn deleteForward(self: *Self, n: usize) void {
     self.buf.replaceRangeAssumeCapacity(self.cursor, it.i - self.cursor, &.{});
 }
 
-pub fn deleteBackward(self: *Self, n: usize) void {
+pub fn deleteBack(self: *Self, n: usize) void {
     const view = Utf8BidirectionalView.initUnchecked(self.buf.items);
     var it = view.iterator();
     it.i = self.cursor;
@@ -86,9 +86,9 @@ test "utf8 input insert and move cursor" {
 
     try utf8_input.insert("こんにちは");
     try utf8_input.insert("世界");
-    utf8_input.moveCursorBackward(2);
+    utf8_input.moveCursorBack(2);
     try utf8_input.insert(", 素晴らしい");
-    utf8_input.moveCursorBackward(999);
+    utf8_input.moveCursorBack(999);
     try utf8_input.insert("はーい");
 
     try testing.expectEqualStrings("はーいこんにちは, 素晴らしい世界", utf8_input.buf.items);
@@ -100,15 +100,15 @@ test "utf8 input insert, move cursor and peek" {
 
     try utf8_input.insert("こんにちは");
     try utf8_input.insert("世界");
-    utf8_input.moveCursorBackward(2);
+    utf8_input.moveCursorBack(2);
 
     try testing.expectEqualStrings("世", utf8_input.peekForward(1));
     try testing.expectEqualStrings("世界", utf8_input.peekForward(2));
-    try testing.expectEqualStrings("は", utf8_input.peekBackward(1));
-    try testing.expectEqualStrings("ちは", utf8_input.peekBackward(2));
+    try testing.expectEqualStrings("は", utf8_input.peekBack(1));
+    try testing.expectEqualStrings("ちは", utf8_input.peekBack(2));
 
     utf8_input.moveCursorForward(999);
-    try testing.expectEqualStrings("こんにちは世界", utf8_input.peekBackward(999));
+    try testing.expectEqualStrings("こんにちは世界", utf8_input.peekBack(999));
 }
 
 test "utf8 input delete" {
@@ -117,13 +117,13 @@ test "utf8 input delete" {
 
     try utf8_input.insert("こんにちは");
 
-    utf8_input.deleteBackward(2);
+    utf8_input.deleteBack(2);
     try testing.expectEqualStrings("こんに", utf8_input.buf.items);
-    utf8_input.moveCursorBackward(2);
+    utf8_input.moveCursorBack(2);
     utf8_input.deleteForward(1);
     try testing.expectEqualStrings("こに", utf8_input.buf.items);
     utf8_input.deleteForward(999);
     try testing.expectEqualStrings("こ", utf8_input.buf.items);
-    utf8_input.deleteBackward(999);
+    utf8_input.deleteBack(999);
     try testing.expectEqualStrings("", utf8_input.buf.items);
 }

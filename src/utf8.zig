@@ -80,7 +80,7 @@ pub const Utf8BidirectionalIterator = struct {
         return it.bytes[original_i..end_ix];
     }
 
-    pub fn peekBackward(it: *Utf8BidirectionalIterator, n: usize) []const u8 {
+    pub fn peekBack(it: *Utf8BidirectionalIterator, n: usize) []const u8 {
         const original_i = it.i;
         defer it.i = original_i;
 
@@ -182,9 +182,9 @@ test "utf8 bidirectional view peek" {
     _ = it.nextCodepointSlice();
     _ = it.nextCodepointSlice();
     _ = it.nextCodepointSlice();
-    try testing.expect(mem.eql(u8, "ら", it.peekBackward(1)));
-    try testing.expect(mem.eql(u8, "oら", it.peekBackward(2)));
-    try testing.expect(mem.eql(u8, "toら", it.peekBackward(3)));
-    try testing.expect(mem.eql(u8, "てtoら", it.peekBackward(4)));
-    try testing.expect(mem.eql(u8, "てtoら", it.peekBackward(99999)));
+    try testing.expect(mem.eql(u8, "ら", it.peekBack(1)));
+    try testing.expect(mem.eql(u8, "oら", it.peekBack(2)));
+    try testing.expect(mem.eql(u8, "toら", it.peekBack(3)));
+    try testing.expect(mem.eql(u8, "てtoら", it.peekBack(4)));
+    try testing.expect(mem.eql(u8, "てtoら", it.peekBack(99999)));
 }
