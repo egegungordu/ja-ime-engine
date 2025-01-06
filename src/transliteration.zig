@@ -2,6 +2,8 @@ const std = @import("std");
 
 // based on Google IME
 
+// TODO: should probably use hashmaps because staticstringmap does eql checks on equal length strings groups
+
 // zig fmt: off
 pub const transliterables = std.StaticStringMap(void).initComptime(.{
     // vowels
@@ -18,8 +20,8 @@ pub const transliterables = std.StaticStringMap(void).initComptime(.{
 // zig fmt: on
 
 // zig fmt: off
-pub const full_width_latin_map = std.StaticStringMap([]const u8).initComptime(.{
-    // single letters for full-width input
+pub const full_width_map = std.StaticStringMap([]const u8).initComptime(.{
+    // latin letters
     .{ "a", "ａ" },
     .{ "b", "ｂ" },
     .{ "c", "ｃ" },
@@ -46,6 +48,52 @@ pub const full_width_latin_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "x", "ｘ" },
     .{ "y", "ｙ" },
     .{ "z", "ｚ" },
+
+    // numbers
+    .{ "0", "０" },
+    .{ "1", "１" },
+    .{ "2", "２" },
+    .{ "3", "３" },
+    .{ "4", "４" },
+    .{ "5", "５" },
+    .{ "6", "６" },
+    .{ "7", "７" },
+    .{ "8", "８" },
+    .{ "9", "９" },
+
+    // punctuation & symbols
+    .{ "`", "｀" },
+    .{ "~", "～" },
+    .{ "!", "！" },
+    .{ "@", "＠" },
+    .{ "#", "＃" },
+    .{ "$", "＄" },
+    .{ "%", "％" },
+    .{ "^", "＾" },
+    .{ "&", "＆" },
+    .{ "*", "＊" },
+    .{ "(", "（" },
+    .{ ")", "）" },
+    .{ "-", "ー" },
+    .{ "_", "＿" },
+    .{ "=", "＝" },
+    .{ "+", "＋" },
+    .{ "[", "「" },
+    .{ "{", "｛" },
+    .{ "]", "」" },
+    .{ "}", "｝" }, 
+    .{ "\\", "￥" }, // TODO: doing double \\ will turn the first '￥' into '\'
+    .{ "|", "｜" },
+    .{ ";", "；" },
+    .{ ":", "：" },
+    .{ "'", "’" },
+    .{ "\"", "”" },
+    .{ ",", "、" },
+    .{ "<", "＜" },
+    .{ ".", "。" },
+    .{ ">", "＞" },
+    .{ "/", "・" },
+    .{ "?", "？" },
 });
 // zig fmt: on
 
