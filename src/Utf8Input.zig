@@ -95,8 +95,8 @@ fn BufferStorage(comptime tag: StorageTag) type {
                         }
                     } else if (range_diff < 0) {
                         // Shrinking: need to shift data left
-                        for (after_range..self.len) |i| {
-                            self.data[i + @as(usize, @intCast(-range_diff))] = self.data[i];
+                        for (0..(self.len - after_range)) |i| {
+                            self.data[start + new_items.len + i] = self.data[after_range + i];
                         }
                     }
 
