@@ -29,9 +29,9 @@ Coming soon!
 
 The minimum Zig version required is 0.13.0.
 
-## Integrating zig-ime-ja into your Zig Project
+## Integrating jaime into your Zig Project
 
-You first need to add zig-ime-ja as a dependency in your `build.zig.zon` file:
+You first need to add jaime as a dependency in your `build.zig.zon` file:
 
 ```bash
 zig fetch --save git+https://github.com/egegungordu/jaime
@@ -40,7 +40,7 @@ zig fetch --save git+https://github.com/egegungordu/jaime
 Then instantiate the dependency in your `build.zig`:
 
 ```zig
-const jaime = b.dependency("ja-ime-engine", .{});
+const jaime = b.dependency("jaime", .{});
 exe.root_module.addImport("jaime", jaime.module("jaime"));
 ```
 
