@@ -25,8 +25,8 @@ pub fn deinit(self: *Self) void {
 /// Inserts a slice into the input buffer, doing transliteration if possible.
 /// Only accepts one valid UTF-8 character at a time.
 pub fn insert(self: *Self, s: []const u8) !void {
-    const full_width_latin = matchFullWidthLatin(s) orelse return;
-    try self.input.insert(full_width_latin);
+    const full_width = matchFullWidth(s) orelse return;
+    try self.input.insert(full_width);
     const result = self.peekBackTransliterable(4) orelse return;
     var it = utf8.createUtf8ShrinkingIterator(result.slice);
     while (it.next()) |segment| {
@@ -104,8 +104,8 @@ fn matchKana(s: []const u8) ?[]const u8 {
     return trans.transliteration_map.get(s);
 }
 
-fn matchFullWidthLatin(s: []const u8) ?[]const u8 {
-    return trans.full_width_latin_map.get(s);
+fn matchFullWidth(s: []const u8) ?[]const u8 {
+    return trans.full_width_map.get(s);
 }
 
 /// Transliterates a repeat case
@@ -255,8 +255,12 @@ test "random transliterations" {
     try testFromFile("./test-data/random-transliterations.txt");
 }
 
-test "all valid transliterations" {
-    try testFromFile("./test-data/transliterations.txt");
+test "all valid kana transliterations" {
+    try testFromFile("./test-data/kana-transliterations.txt");
+}
+
+test "full width transliterations" {
+    try testFromFile("./test-data/full-width-transliterations.txt");
 }
 
 fn testFromFile(comptime path: []const u8) !void {
