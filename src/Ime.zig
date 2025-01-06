@@ -194,19 +194,6 @@ fn areFirstTwoCodepointsSame(it: *unicode.Utf8Iterator) !bool {
     return std.mem.eql(u8, first, second);
 }
 
-test "yah" {
-    // var buf: [100]u8 = undefined;
-    var ime = Ime(.owned).init(testing.allocator);
-    defer ime.deinit();
-
-    try ime.insert("k");
-    try ime.insert("c");
-    ime.moveCursorBack();
-    try ime.insert("i");
-
-    std.debug.print("{s}\n", .{ime.input.buf.items()});
-}
-
 // Utility tests
 test "ime: utils - first codepoint comparison" {
     var it = unicode.Utf8Iterator{ .bytes = "abc", .i = 0 };
@@ -322,7 +309,6 @@ test "ime: borrowed - buffer overflow" {
 fn testFromFile(comptime tag: utf8_input.StorageTag, comptime path: []const u8) !void {
     const file = @embedFile(path);
 
-    var last_comment: ?[]const u8 = null;
     var lines = std.mem.split(u8, file, "\n");
 
     var buf: [1024]u8 = undefined;
@@ -337,8 +323,6 @@ fn testFromFile(comptime tag: utf8_input.StorageTag, comptime path: []const u8) 
         if (trimmed.len == 0) continue;
 
         if (std.mem.startsWith(u8, trimmed, "#")) {
-            last_comment = trimmed;
-            std.debug.print("\n{s}\n", .{trimmed});
             continue;
         }
 
@@ -350,8 +334,6 @@ fn testFromFile(comptime tag: utf8_input.StorageTag, comptime path: []const u8) 
         for (romaji) |c| {
             try ime.insert(&.{c});
         }
-
-        std.debug.print("\nTesting romaji: {s} -> hiragana: {s}", .{ romaji, hiragana });
 
         // Verify output
         try std.testing.expectEqualStrings(hiragana, ime.input.buf.items());
