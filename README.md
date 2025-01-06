@@ -89,9 +89,11 @@ try ime.insert("n");
 try std.testing.expectEqualStrings("こん", ime.input.buf.items());
 
 // Cursor movement and editing
-ime.moveCursorBack();  // Move cursor left
-try ime.insert("y");   // Insert at cursor
-ime.clear();          // Clear the buffer
+ime.moveCursorBack();   // Move cursor left
+try ime.insert("y");    // Insert at cursor
+ime.clear();            // Clear the buffer
+ime.deleteBack();       // Delete the last character
+ime.deleteForward();    // Delete the next character
 ```
 
 ## Features
