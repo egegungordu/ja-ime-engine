@@ -3,7 +3,22 @@ const std = @import("std");
 // based on Google IME
 
 // zig fmt: off
-pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
+pub const transliterables = std.StaticStringMap(void).initComptime(.{
+    // vowels
+    .{"a"}, .{"i"}, .{"u"}, .{"e"}, .{"o"},
+
+    // consonants
+    .{"k"}, .{"s"}, .{"t"}, .{"n"}, .{"h"}, .{"m"}, .{"y"}, 
+    .{"r"}, .{"w"}, .{"g"}, .{"z"}, .{"d"}, .{"b"}, .{"p"}, 
+    .{"n"}, .{"c"},
+
+    // small kana modifier
+    .{"x"}, .{"l"}
+});
+// zig fmt: on
+
+// zig fmt: off
+pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "a", "あ" },
     .{ "i", "い" },
     .{ "u", "う" },
@@ -58,7 +73,7 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
 
     .{ "wa", "わ" },
     .{ "wo", "を" },
-    .{ "n", "ん" },
+    .{ "nn", "ん" },
 
     // Voiced consonants
     .{ "ga", "が" },
@@ -229,23 +244,58 @@ pub const TransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
     .{ "we", "うぇ" },
 
     .{ "ye", "いぇ" },
-});
 
-pub const SmallTransliterationMap = std.StaticStringMap([]const u8).initComptime(.{
-    .{ "tsu", "っ" },
+    // small kana 'x'
+    .{ "xtsu", "っ" },
 
-    .{ "ke", "ヶ" },
-    .{ "ka", "ヵ" },
+    .{ "xke", "ヶ" },
+    .{ "xka", "ヵ" },
 
-    .{ "a", "ぁ" },
-    .{ "i", "ぃ" },
-    .{ "u", "ぅ" },
-    .{ "e", "ぇ" },
-    .{ "o", "ぉ" },
+    .{ "xa", "ぁ" },
+    .{ "xi", "ぃ" },
+    .{ "xu", "ぅ" },
+    .{ "xe", "ぇ" },
+    .{ "xo", "ぉ" },
 
-    .{ "ya", "ゃ" },
-    .{ "yi", "ぃ" },
-    .{ "yu", "ゅ" },
-    .{ "ye", "ぇ" },
-    .{ "yo", "ょ" },
+    .{ "xya", "ゃ" },
+    .{ "xyi", "ぃ" },
+    .{ "xyu", "ゅ" },
+    .{ "xye", "ぇ" },
+    .{ "xyo", "ょ" },
+
+    // small kana with 'l'
+    .{ "ltsu", "っ" },
+
+    .{ "lke", "ヶ" },
+    .{ "lka", "ヵ" },
+
+    .{ "la", "ぁ" },
+    .{ "li", "ぃ" },
+    .{ "lu", "ぅ" },
+    .{ "le", "ぇ" },
+    .{ "lo", "ぉ" },
+
+    .{ "lya", "ゃ" },
+    .{ "lyi", "ぃ" },
+    .{ "lyu", "ゅ" },
+    .{ "lye", "ぇ" },
+    .{ "lyo", "ょ" },
+
+    // small tsu with repetition
+    // for all consonants
+    .{ "kk", "っ" },
+    .{ "ss", "っ" },
+    .{ "tt", "っ" },
+    .{ "pp", "っ" },
+    .{ "bb", "っ" },
+    .{ "dd", "っ" },
+    .{ "ff", "っ" },
+    .{ "gg", "っ" },
+    .{ "hh", "っ" },
+    .{ "jj", "っ" },
+    .{ "kk", "っ" },
+    .{ "ll", "っ" },
+    .{ "xx", "っ" },
+    .{ "zz", "っ" },
+    .{ "cc", "っ" },
 });
