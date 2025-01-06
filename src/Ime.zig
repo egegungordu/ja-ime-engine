@@ -66,6 +66,14 @@ pub fn Ime(comptime tag: utf8_input.StorageTag) type {
             self.input.moveCursorBack(1);
         }
 
+        pub fn deleteBack(self: *Self) void {
+            self.input.deleteBack(1);
+        }
+
+        pub fn deleteForward(self: *Self) void {
+            self.input.deleteForward(1);
+        }
+
         const PeekBackTransliterableResult = struct {
             slice: []const u8,
             codepoint_len: usize,
@@ -246,6 +254,33 @@ test "ime: owned - cursor movement" {
     try std.testing.expectEqualStrings("きぃｃ", ime.input.buf.items());
 }
 
+test "ime: owned - deletion" {
+    var ime = Ime(.owned).init(std.testing.allocator);
+    defer ime.deinit();
+
+    // Test deleteBack
+    try ime.insert("c");
+    try ime.insert("k");
+    try ime.insert("a");
+    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
+    ime.deleteBack();
+    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
+
+    ime.clear();
+
+    // Test deleteForward
+    try ime.insert("c");
+    try ime.insert("k");
+    try ime.insert("a");
+    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
+    ime.moveCursorBack();
+    ime.deleteForward();
+    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
+    ime.moveCursorBack();
+    ime.deleteForward();
+    try std.testing.expectEqualStrings("", ime.input.buf.items());
+}
+
 test "ime: owned - transliteration random" {
     try testFromFile(.owned, "./test-data/random-transliterations.txt");
 }
@@ -278,6 +313,36 @@ test "ime: borrowed - cursor movement" {
     ime.moveCursorBack();
     try ime.insert("i");
     try std.testing.expectEqualStrings("きぃｃ", ime.input.buf.items());
+}
+
+test "ime: borrowed - deletion" {
+    var buf: [100]u8 = undefined;
+    var ime = Ime(.borrowed).init(&buf);
+    defer ime.deinit();
+
+    // Test deleteBack
+    try ime.insert("c");
+    try ime.insert("k");
+    try ime.insert("a");
+    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
+    ime.deleteBack();
+    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
+    ime.deleteBack();
+    try std.testing.expectEqualStrings("", ime.input.buf.items());
+
+    ime.clear();
+
+    // Test deleteForward
+    try ime.insert("c");
+    try ime.insert("k");
+    try ime.insert("a");
+    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
+    ime.moveCursorBack();
+    ime.deleteForward();
+    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
+    ime.moveCursorBack();
+    ime.deleteForward();
+    try std.testing.expectEqualStrings("", ime.input.buf.items());
 }
 
 test "ime: borrowed - transliteration random" {

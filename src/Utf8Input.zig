@@ -193,16 +193,18 @@ pub fn Utf8Input(comptime tag: StorageTag) type {
             return it.peekForward(1);
         }
 
-        pub fn deleteForward(self: *Self, n: usize) !void {
+        pub fn deleteForward(self: *Self, n: usize) void {
             var it = self.initializeIteratorAtCursor();
             iterateForward(&it, n);
-            try self.buf.replaceRange(self.cursor, it.i - self.cursor, &.{});
+            // we know for a fact that this cant throw because we are shrinking
+            self.buf.replaceRange(self.cursor, it.i - self.cursor, &.{}) catch unreachable;
         }
 
-        pub fn deleteBack(self: *Self, n: usize) !void {
+        pub fn deleteBack(self: *Self, n: usize) void {
             var it = self.initializeIteratorAtCursor();
             iterateBack(&it, n);
-            try self.buf.replaceRange(it.i, self.cursor - it.i, &.{});
+            // we know for a fact that this cant throw because we are shrinking
+            self.buf.replaceRange(it.i, self.cursor - it.i, &.{}) catch unreachable;
             self.cursor = it.i;
         }
 
@@ -287,14 +289,14 @@ test "utf8 input: owned - delete operations" {
 
     try ins(.owned, &utf8_input, "こんにちは");
 
-    try utf8_input.deleteBack(2);
+    utf8_input.deleteBack(2);
     try testing.expectEqualStrings("こんに", utf8_input.buf.items());
     utf8_input.moveCursorBack(2);
-    try utf8_input.deleteForward(1);
+    utf8_input.deleteForward(1);
     try testing.expectEqualStrings("こに", utf8_input.buf.items());
-    try utf8_input.deleteForward(999);
+    utf8_input.deleteForward(999);
     try testing.expectEqualStrings("こ", utf8_input.buf.items());
-    try utf8_input.deleteBack(999);
+    utf8_input.deleteBack(999);
     try testing.expectEqualStrings("", utf8_input.buf.items());
 }
 
@@ -308,7 +310,7 @@ test "utf8 input: borrowed - basic operations" {
     try testing.expectEqualStrings("a", utf8_input.buf.items());
     try utf8_input.insert("b");
     try testing.expectEqualStrings("ab", utf8_input.buf.items());
-    try utf8_input.deleteBack(1);
+    utf8_input.deleteBack(1);
     try testing.expectEqualStrings("a", utf8_input.buf.items());
 }
 
