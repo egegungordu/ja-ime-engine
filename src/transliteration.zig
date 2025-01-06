@@ -10,7 +10,7 @@ pub const transliterables = std.StaticStringMap(void).initComptime(.{
     // consonants
     .{"k"}, .{"s"}, .{"t"}, .{"n"}, .{"h"}, .{"m"}, .{"y"}, 
     .{"r"}, .{"w"}, .{"g"}, .{"z"}, .{"d"}, .{"b"}, .{"p"}, 
-    .{"n"}, .{"c"},
+    .{"n"}, .{"c"}, .{"q"}, .{"j"}, .{"v"},
 
     // small kana modifier
     .{"x"}, .{"l"}
