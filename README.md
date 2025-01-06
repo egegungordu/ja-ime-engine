@@ -1,6 +1,6 @@
 # Jaime
 
-A Japanese IME (Input Method Editor) engine for Zig projects, focusing on romaji to hiragana/full-width character conversion.
+A Japanese IME (Input Method Editor) engine for Zig projects, focusing on romaji to hiragana/full-width character conversion. Based on Google IME behavior.
 
 <table>
 <tr>
@@ -46,28 +46,57 @@ exe.root_module.addImport("jaime", jaime.module("jaime"));
 
 ## Usage
 
-The library provides a simple API for converting romaji (Latin characters) to hiragana:
+The library provides several ways to convert romaji (Latin characters) to hiragana:
+
+### Quick Conversion Functions
+
+For simple one-off conversions, use these helper functions:
 
 ```zig
 const jaime = @import("jaime");
 
-test "Basic romaji to hiragana conversion" {
-    var ime = jaime.init(std.testing.allocator);
-    defer ime.deinit();
+// Using a provided buffer (no allocations)
+var buf: [100]u8 = undefined;
+const result = try jaime.bufConvert(&buf, "konnnichiha");
+try std.testing.expectEqualStrings("こんにちは", result);
 
-    for ("konnnichiha") |c| {
-        try ime.insert(&.{c});
-        std.debug.print("{s}\n", .{ime.input.buf.items});
-    }
+// Using an allocator (returns owned slice)
+const result2 = try jaime.allocConvert(allocator, "konnnichiha");
+defer allocator.free(result2);
+try std.testing.expectEqualStrings("こんにちは", result2);
+```
 
-    try std.testing.expectEqualStrings("こんにちは", ime.input.buf.items);
-}
+### Interactive IME
+
+For interactive input handling, you can use the IME type which supports both owned (ArrayList) and borrowed (fixed-size) buffers:
+
+```zig
+const jaime = @import("jaime");
+
+// Using owned buffer (with allocator)
+var ime = jaime.Ime(.owned).init(allocator);
+defer ime.deinit();  // deinit required for owned buffers
+
+// Using borrowed buffer (fixed size, no allocations)
+var buf: [100]u8 = undefined;
+var ime = jaime.Ime(.borrowed).init(&buf);
+// no deinit needed for borrowed buffers
+
+// Both versions support the same API
+try ime.insert("k");
+try ime.insert("o");
+try ime.insert("n");
+try std.testing.expectEqualStrings("こん", ime.input.buf.items());
+
+// Cursor movement and editing
+ime.moveCursorBack();  // Move cursor left
+try ime.insert("y");   // Insert at cursor
+ime.clear();          // Clear the buffer
 ```
 
 ## Features
 
 - Romaji to hiragana/full-width character conversion based on Google IME mapping
-- Support for common Japanese input patterns:
   - Basic hiragana (あ、い、う、え、お、か、き、く...)
     - a -> あ
     - ka -> か
@@ -83,6 +112,9 @@ test "Basic romaji to hiragana conversion" {
     - . -> 。
     - ? -> ？
     - [ -> 「
+- Memory management options:
+  - Owned buffer using ArrayList for dynamic sizing
+  - Borrowed buffer for fixed-size, allocation-free usage
 
 ## Contributing
 

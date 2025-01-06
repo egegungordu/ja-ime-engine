@@ -153,7 +153,7 @@ pub const Utf8ShrinkingIterator = struct {
     }
 };
 
-test "utf8 bidirectional view on kanji" {
+test "utf8: bidirectional - kanji iteration" {
     const s = Utf8BidirectionalView.initUnchecked("東京市");
 
     var it1 = s.iterator();
@@ -177,7 +177,7 @@ test "utf8 bidirectional view on kanji" {
     try testing.expect(it2.prevCodepoint() == null);
 }
 
-test "utf8 bidirectional view on ascii" {
+test "utf8: bidirectional - ascii iteration" {
     const s = Utf8BidirectionalView.initUnchecked("abc");
 
     var it1 = s.iterator();
@@ -201,7 +201,7 @@ test "utf8 bidirectional view on ascii" {
     try testing.expect(it2.prevCodepoint() == null);
 }
 
-test "utf8 bidirectional view on mixed" {
+test "utf8: bidirectional - mixed text iteration" {
     const s = Utf8BidirectionalView.initUnchecked("リズムにyeah");
     var it = s.iterator();
     try testing.expectEqualStrings(it.nextCodepointSlice().?, "リ");
@@ -224,7 +224,7 @@ test "utf8 bidirectional view on mixed" {
     try testing.expect(it.prevCodepointSlice() == null);
 }
 
-test "utf8 bidirectional view peek" {
+test "utf8: bidirectional - peek operations" {
     const s = Utf8BidirectionalView.initUnchecked("てtoらpoっど");
     var it = s.iterator();
     try testing.expectEqualStrings("て", it.peekForward(1).slice);
@@ -249,13 +249,13 @@ test "utf8 bidirectional view peek" {
     try testing.expectEqual(4, it.peekBack(99999).codepoint_len);
 }
 
-test "utf8 shrinking iterator" {
+test "utf8: shrinking - basic iteration" {
     const s = "きょうは";
     var it = createUtf8ShrinkingIterator(s);
 
     // First iteration: "きょうは"
     if (it.next()) |segment| {
-        try testing.expectEqualStrings("きょうは", segment.slice);
+        try testing.expectEqualStrings("きょうは", segment.it.bytes);
         try testing.expectEqual(@as(usize, 4), segment.codepoint_len);
     } else {
         try testing.expect(false);
@@ -263,7 +263,7 @@ test "utf8 shrinking iterator" {
 
     // Second iteration: "ょうは"
     if (it.next()) |segment| {
-        try testing.expectEqualStrings("ょうは", segment.slice);
+        try testing.expectEqualStrings("ょうは", segment.it.bytes);
         try testing.expectEqual(@as(usize, 3), segment.codepoint_len);
     } else {
         try testing.expect(false);
@@ -271,7 +271,7 @@ test "utf8 shrinking iterator" {
 
     // Third iteration: "うは"
     if (it.next()) |segment| {
-        try testing.expectEqualStrings("うは", segment.slice);
+        try testing.expectEqualStrings("うは", segment.it.bytes);
         try testing.expectEqual(@as(usize, 2), segment.codepoint_len);
     } else {
         try testing.expect(false);
@@ -279,7 +279,7 @@ test "utf8 shrinking iterator" {
 
     // Fourth iteration: "は"
     if (it.next()) |segment| {
-        try testing.expectEqualStrings("は", segment.slice);
+        try testing.expectEqualStrings("は", segment.it.bytes);
         try testing.expectEqual(@as(usize, 1), segment.codepoint_len);
     } else {
         try testing.expect(false);
