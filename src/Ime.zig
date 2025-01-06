@@ -23,7 +23,7 @@ pub fn deinit(self: *Self) void {
 }
 
 /// Inserts a slice into the input buffer, doing transliteration if possible.
-/// Only accepts one valid UTF-8 codepoint at a time.
+/// Only accepts one valid UTF-8 character at a time.
 pub fn insert(self: *Self, s: []const u8) !void {
     try self.input.insert(s);
     if (self.matchBack(4)) |match| {
@@ -49,6 +49,11 @@ pub fn insert(self: *Self, s: []const u8) !void {
     }
 }
 
+pub fn reset(self: *Self) void {
+    self.input.buf.clearRetainingCapacity();
+    self.input.cursor = 0;
+}
+
 pub fn moveCursorForward(self: *Self) void {
     self.input.moveCursorForward(1);
 }
@@ -68,8 +73,8 @@ const PeekBackTransliterableResult = struct {
 /// Peeks back n characters in the input buffer and returns the biggest transliterable slice.
 ///
 /// Example (n = 2):
-/// - hello -> .{ "lo", "2" }
-/// - んg -> .{ "g", "1" }
+/// - "hello" -> .{ "lo", 2 }
+/// - "んg" -> .{ "g", 1 }
 fn peekBackTransliterable(self: *Self, n: usize) ?PeekBackTransliterableResult {
     var total_bytes: usize = 0;
     var total_codepoint_len: usize = 0;
@@ -102,11 +107,11 @@ const MatchBackResult = struct {
     matched_slice: []const u8,
 };
 
-/// Tries to match the biggest transliterable slice against the last n characters in the input buffer.
+/// Tries to match the biggest transliterable slice in the last n characters of the input buffer.
 ///
 /// Example (n = 2)
-/// - kya -> .{ "ya", "2", "や" }
-/// - んi -> .{ "i", "1", "い" }
+/// - "kya" -> .{ "ya", 2, "や" }
+/// - "んi" -> .{ "i", 1, "い" }
 fn matchBack(self: *Self, n: usize) ?MatchBackResult {
     if (peekBackTransliterable(self, n)) |result| {
         if (result.codepoint_len == 0) {
@@ -124,6 +129,7 @@ fn matchBack(self: *Self, n: usize) ?MatchBackResult {
 }
 
 /// Returns true if the first two codepoints in the slice are the same.
+/// Assumes that the slice is a valid UTF-8 sequence.
 fn areFirstTwoCodepointsSame(slice: []const u8) bool {
     var view = unicode.Utf8View.initUnchecked(slice);
     var it = view.iterator();
@@ -132,14 +138,6 @@ fn areFirstTwoCodepointsSame(slice: []const u8) bool {
     const second = it.nextCodepoint() orelse return false;
 
     return first == second;
-}
-
-test "areFirstTwoCodepointsSame" {
-    try testing.expect(areFirstTwoCodepointsSame("aa"));
-    try testing.expect(areFirstTwoCodepointsSame("ああ"));
-    try testing.expect(!areFirstTwoCodepointsSame("ab"));
-    try testing.expect(!areFirstTwoCodepointsSame("a"));
-    try testing.expect(!areFirstTwoCodepointsSame(""));
 }
 
 test "ime" {
@@ -152,11 +150,43 @@ test "ime" {
     }
 }
 
-test "transliteration test" {
+test "areFirstTwoCodepointsSame" {
+    try testing.expect(areFirstTwoCodepointsSame("aa"));
+    try testing.expect(areFirstTwoCodepointsSame("ああ"));
+    try testing.expect(!areFirstTwoCodepointsSame("ab"));
+    try testing.expect(!areFirstTwoCodepointsSame("a"));
+    try testing.expect(!areFirstTwoCodepointsSame(""));
+}
+
+test "insertion with moving cursor" {
+    var ime = Self.init(std.testing.allocator);
+    defer ime.deinit();
+
+    try ime.insert("k");
+    try ime.insert("c");
+    ime.moveCursorBack();
+    try ime.insert("i");
+    try std.testing.expectEqualStrings("きc", ime.input.buf.items);
+
+    ime.reset();
+
+    try ime.insert("k");
+    try ime.insert("y");
+    try ime.insert("c");
+    ime.moveCursorBack();
+    try ime.insert("i");
+    try std.testing.expectEqualStrings("きぃc", ime.input.buf.items);
+}
+
+test "all valid transliterations" {
     const file = @embedFile("./test-data/transliterations.txt");
 
     var last_comment: ?[]const u8 = null;
     var lines = std.mem.split(u8, file, "\n");
+
+    // Create a FSM instance for testing
+    var ime = Self.init(std.testing.allocator);
+    defer ime.deinit();
 
     while (lines.next()) |line| {
         const trimmed = std.mem.trim(u8, line, " \t\r");
@@ -172,10 +202,6 @@ test "transliteration test" {
         const romaji = parts.next() orelse continue;
         const hiragana = parts.next() orelse continue;
 
-        // Create a FSM instance for testing
-        var ime = Self.init(std.testing.allocator);
-        defer ime.deinit();
-
         // Process each character of the romaji input
         for (romaji) |c| {
             try ime.insert(&.{c});
@@ -185,5 +211,7 @@ test "transliteration test" {
 
         // Verify output
         try std.testing.expectEqualStrings(hiragana, ime.input.buf.items);
+
+        ime.reset();
     }
 }
