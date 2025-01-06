@@ -125,7 +125,7 @@ pub fn createUtf8ShrinkingIterator(s: []const u8) Utf8ShrinkingIterator {
 }
 
 pub const Segment = struct {
-    slice: []const u8,
+    it: unicode.Utf8Iterator,
     codepoint_len: usize,
 };
 
@@ -141,7 +141,7 @@ pub const Utf8ShrinkingIterator = struct {
         var it = unicode.Utf8View.initUnchecked(self.bytes[self.i..]).iterator();
 
         const candidate = Segment{
-            .slice = it.bytes,
+            .it = it,
             .codepoint_len = self.codepoint_len,
         };
 

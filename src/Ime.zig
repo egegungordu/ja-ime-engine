@@ -25,24 +25,26 @@ pub fn deinit(self: *Self) void {
 /// Inserts a slice into the input buffer, doing transliteration if possible.
 /// Only accepts one valid UTF-8 character at a time.
 pub fn insert(self: *Self, s: []const u8) !void {
-    try self.input.insert(s);
+    const full_width_latin = matchFullWidthLatin(s) orelse return;
+    try self.input.insert(full_width_latin);
     const result = self.peekBackTransliterable(4) orelse return;
     var it = utf8.createUtf8ShrinkingIterator(result.slice);
     while (it.next()) |segment| {
+        var mutable_segment = segment;
         const isRepeatCase =
             segment.codepoint_len == 2 and
-            segment.slice[0] != 'n' and
-            areFirstTwoCodepointsSame(segment.slice);
+            !try firstCodepointEqual(&mutable_segment.it, "ｎ") and
+            try areFirstTwoCodepointsSame(&mutable_segment.it);
         const isNCase =
             segment.codepoint_len == 2 and
-            segment.slice[0] == 'n';
+            try firstCodepointEqual(&mutable_segment.it, "ｎ");
 
         if (isRepeatCase) {
-            if (try self.transliterateRepeat(segment)) break;
+            if (try self.transliterateRepeat(&mutable_segment)) break;
         } else if (isNCase) {
-            if (try self.transliterateN(segment)) break;
+            if (try self.transliterateN(&mutable_segment)) break;
         } else {
-            if (try self.transliterateBasicMatch(segment)) break;
+            if (try self.transliterateBasicMatch(&mutable_segment)) break;
         }
     }
 }
@@ -102,9 +104,16 @@ fn matchKana(s: []const u8) ?[]const u8 {
     return trans.transliteration_map.get(s);
 }
 
-fn transliterateRepeat(self: *Self, segment: utf8.Segment) !bool {
+fn matchFullWidthLatin(s: []const u8) ?[]const u8 {
+    return trans.full_width_latin_map.get(s);
+}
+
+/// Transliterates a repeat case
+///
+/// - ｔｔ -> っ
+fn transliterateRepeat(self: *Self, segment: *utf8.Segment) !bool {
     // might not need match here, since all repeats MIGHT create sokuon
-    if (matchKana(segment.slice)) |match| {
+    if (matchKana(segment.it.bytes)) |match| {
         self.input.moveCursorBack(1);
         try self.input.replaceBack(1, match);
         self.input.moveCursorForward(1);
@@ -113,41 +122,70 @@ fn transliterateRepeat(self: *Self, segment: utf8.Segment) !bool {
     return false;
 }
 
-fn transliterateN(self: *Self, segment: utf8.Segment) !bool {
-    switch (segment.slice[1]) {
-        'y' => {},
-        'a', 'i', 'u', 'e', 'o', 'n' => if (matchKana(segment.slice)) |match| {
-            try self.input.replaceBack(2, match);
-            return true;
-        },
-        else => {
-            self.input.moveCursorBack(1);
-            try self.input.replaceBack(1, "ん");
-            self.input.moveCursorForward(1);
-            return true;
-        },
-    }
-    return false;
+pub const n_fallthrough_cases = std.StaticStringMap(void).initComptime(.{
+    // vowels
+    .{"ｎａ"}, .{"ｎｉ"}, .{"ｎｕ"}, .{"ｎｅ"}, .{"ｎｏ"}, .{"ｎｎ"},
+});
+
+fn isNFallthroughCase(s: []const u8) bool {
+    return n_fallthrough_cases.get(s) != null;
 }
 
-fn transliterateBasicMatch(self: *Self, segment: utf8.Segment) !bool {
-    if (matchKana(segment.slice)) |match| {
+fn isNYCase(s: []const u8) bool {
+    return std.mem.eql(u8, s, "ｎｙ");
+}
+
+/// Transliterates an n case
+///
+/// - ｎａ -> な
+/// - ｎｎ -> ん
+fn transliterateN(self: *Self, segment: *utf8.Segment) !bool {
+    if (isNYCase(segment.it.bytes)) {
+        // Do nothing for 'ｎｙ'
+        return false;
+    }
+    if (isNFallthroughCase(segment.it.bytes)) {
+        if (matchKana(segment.it.bytes)) |match| {
+            try self.input.replaceBack(2, match);
+            return true;
+        }
+        unreachable;
+    }
+    self.input.moveCursorBack(1);
+    try self.input.replaceBack(1, "ん");
+    self.input.moveCursorForward(1);
+    return true;
+}
+
+/// Transliterates basic matches
+///
+/// - ｋｕ -> く
+/// - ｋｙｏ -> きょ
+/// - ａ -> あ
+fn transliterateBasicMatch(self: *Self, segment: *utf8.Segment) !bool {
+    if (matchKana(segment.it.bytes)) |match| {
         try self.input.replaceBack(segment.codepoint_len, match);
         return true;
     }
     return false;
 }
 
-/// Returns true if the first two codepoints in the slice are the same.
-/// Assumes that the slice is a valid UTF-8 sequence.
-fn areFirstTwoCodepointsSame(slice: []const u8) bool {
-    var view = unicode.Utf8View.initUnchecked(slice);
-    var it = view.iterator();
+/// Returns true if the first codepoint in the iterator is the same as the slice.
+fn firstCodepointEqual(it: *unicode.Utf8Iterator, slice: []const u8) !bool {
+    const first = it.peek(1);
+    if (first.len == 0) return error.InvalidInput;
+    return std.mem.eql(u8, first, slice);
+}
 
-    const first = it.nextCodepoint() orelse return false;
-    const second = it.nextCodepoint() orelse return false;
+/// Returns true if the first two codepoints in the iterator are the same.
+fn areFirstTwoCodepointsSame(it: *unicode.Utf8Iterator) !bool {
+    const first = it.peek(1);
+    if (first.len == 0) return error.InvalidInput;
+    const first_two = it.peek(2);
+    if (first_two.len <= first.len) return error.InvalidInput;
+    const second = first_two[first.len..];
 
-    return first == second;
+    return std.mem.eql(u8, first, second);
 }
 
 test "ime" {
@@ -163,12 +201,34 @@ test "ime" {
     }
 }
 
+test "firstCodepointEqual" {
+    var it = unicode.Utf8Iterator{ .bytes = "abc", .i = 0 };
+    try testing.expect(try firstCodepointEqual(&it, "a"));
+    try testing.expect(!try firstCodepointEqual(&it, "b"));
+
+    var it2 = unicode.Utf8Iterator{ .bytes = "あいう", .i = 0 };
+    try testing.expect(try firstCodepointEqual(&it2, "あ"));
+    try testing.expect(!try firstCodepointEqual(&it2, "い"));
+
+    var it3 = unicode.Utf8Iterator{ .bytes = "", .i = 0 };
+    try testing.expectError(error.InvalidInput, firstCodepointEqual(&it3, "a"));
+}
+
 test "areFirstTwoCodepointsSame" {
-    try testing.expect(areFirstTwoCodepointsSame("aa"));
-    try testing.expect(areFirstTwoCodepointsSame("ああ"));
-    try testing.expect(!areFirstTwoCodepointsSame("ab"));
-    try testing.expect(!areFirstTwoCodepointsSame("a"));
-    try testing.expect(!areFirstTwoCodepointsSame(""));
+    var it = unicode.Utf8Iterator{ .bytes = "aa", .i = 0 };
+    try testing.expect(try areFirstTwoCodepointsSame(&it));
+
+    var it2 = unicode.Utf8Iterator{ .bytes = "ああ", .i = 0 };
+    try testing.expect(try areFirstTwoCodepointsSame(&it2));
+
+    var it3 = unicode.Utf8Iterator{ .bytes = "ab", .i = 0 };
+    try testing.expect(!try areFirstTwoCodepointsSame(&it3));
+
+    var it4 = unicode.Utf8Iterator{ .bytes = "a", .i = 0 };
+    try testing.expectError(error.InvalidInput, areFirstTwoCodepointsSame(&it4));
+
+    var it5 = unicode.Utf8Iterator{ .bytes = "", .i = 0 };
+    try testing.expectError(error.InvalidInput, areFirstTwoCodepointsSame(&it5));
 }
 
 test "insertion with moving cursor" {
@@ -179,7 +239,7 @@ test "insertion with moving cursor" {
     try ime.insert("c");
     ime.moveCursorBack();
     try ime.insert("i");
-    try std.testing.expectEqualStrings("きc", ime.input.buf.items);
+    try std.testing.expectEqualStrings("きｃ", ime.input.buf.items);
 
     ime.reset();
 
@@ -188,7 +248,7 @@ test "insertion with moving cursor" {
     try ime.insert("c");
     ime.moveCursorBack();
     try ime.insert("i");
-    try std.testing.expectEqualStrings("きぃc", ime.input.buf.items);
+    try std.testing.expectEqualStrings("きぃｃ", ime.input.buf.items);
 }
 
 test "random transliterations" {
