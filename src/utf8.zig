@@ -112,6 +112,47 @@ pub const Utf8BidirectionalIterator = struct {
     }
 };
 
+pub fn createUtf8ShrinkingIterator(s: []const u8) Utf8ShrinkingIterator {
+    var it = unicode.Utf8View.initUnchecked(s).iterator();
+    var codepoint_len: usize = 0;
+    while (it.nextCodepointSlice()) |_| {
+        codepoint_len += 1;
+    }
+    return Utf8ShrinkingIterator{
+        .codepoint_len = codepoint_len,
+        .bytes = s,
+    };
+}
+
+pub const Segment = struct {
+    slice: []const u8,
+    codepoint_len: usize,
+};
+
+pub const Utf8ShrinkingIterator = struct {
+    codepoint_len: usize,
+    bytes: []const u8,
+    i: usize = 0,
+
+    pub fn next(self: *Utf8ShrinkingIterator) ?Segment {
+        if (self.i >= self.bytes.len) {
+            return null;
+        }
+        var it = unicode.Utf8View.initUnchecked(self.bytes[self.i..]).iterator();
+
+        const candidate = Segment{
+            .slice = it.bytes,
+            .codepoint_len = self.codepoint_len,
+        };
+
+        _ = it.nextCodepoint() orelse return null;
+        self.codepoint_len -= 1;
+        self.i += it.i;
+
+        return candidate;
+    }
+};
+
 test "utf8 bidirectional view on kanji" {
     const s = Utf8BidirectionalView.initUnchecked("東京市");
 
@@ -206,4 +247,44 @@ test "utf8 bidirectional view peek" {
     try testing.expectEqualStrings("てtoら", it.peekBack(4).slice);
     try testing.expectEqualStrings("てtoら", it.peekBack(99999).slice);
     try testing.expectEqual(4, it.peekBack(99999).codepoint_len);
+}
+
+test "utf8 shrinking iterator" {
+    const s = "きょうは";
+    var it = createUtf8ShrinkingIterator(s);
+
+    // First iteration: "きょうは"
+    if (it.next()) |segment| {
+        try testing.expectEqualStrings("きょうは", segment.slice);
+        try testing.expectEqual(@as(usize, 4), segment.codepoint_len);
+    } else {
+        try testing.expect(false);
+    }
+
+    // Second iteration: "ょうは"
+    if (it.next()) |segment| {
+        try testing.expectEqualStrings("ょうは", segment.slice);
+        try testing.expectEqual(@as(usize, 3), segment.codepoint_len);
+    } else {
+        try testing.expect(false);
+    }
+
+    // Third iteration: "うは"
+    if (it.next()) |segment| {
+        try testing.expectEqualStrings("うは", segment.slice);
+        try testing.expectEqual(@as(usize, 2), segment.codepoint_len);
+    } else {
+        try testing.expect(false);
+    }
+
+    // Fourth iteration: "は"
+    if (it.next()) |segment| {
+        try testing.expectEqualStrings("は", segment.slice);
+        try testing.expectEqual(@as(usize, 1), segment.codepoint_len);
+    } else {
+        try testing.expect(false);
+    }
+
+    // Fourth iteration: should be null
+    try testing.expect(it.next() == null);
 }
