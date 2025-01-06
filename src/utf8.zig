@@ -18,6 +18,11 @@ pub const Utf8BidirectionalView = struct {
     }
 };
 
+pub const PeekResult = struct {
+    slice: []const u8,
+    codepoint_len: usize,
+};
+
 pub const Utf8BidirectionalIterator = struct {
     bytes: []const u8,
     i: usize,
@@ -66,32 +71,44 @@ pub const Utf8BidirectionalIterator = struct {
         return unicode.utf8Decode(slice) catch unreachable;
     }
 
-    pub fn peekForward(it: *Utf8BidirectionalIterator, n: usize) []const u8 {
+    pub fn peekForward(it: *Utf8BidirectionalIterator, n: usize) PeekResult {
         const original_i = it.i;
         defer it.i = original_i;
 
         var end_ix = original_i;
         var found: usize = 0;
         while (found < n) : (found += 1) {
-            const next_codepoint = it.nextCodepointSlice() orelse return it.bytes[original_i..];
+            const next_codepoint = it.nextCodepointSlice() orelse return .{
+                .slice = it.bytes[original_i..],
+                .codepoint_len = found,
+            };
             end_ix += next_codepoint.len;
         }
 
-        return it.bytes[original_i..end_ix];
+        return .{
+            .slice = it.bytes[original_i..end_ix],
+            .codepoint_len = found,
+        };
     }
 
-    pub fn peekBack(it: *Utf8BidirectionalIterator, n: usize) []const u8 {
+    pub fn peekBack(it: *Utf8BidirectionalIterator, n: usize) PeekResult {
         const original_i = it.i;
         defer it.i = original_i;
 
         var start_ix = original_i;
         var found: usize = 0;
         while (found < n) : (found += 1) {
-            const prev_codepoint = it.prevCodepointSlice() orelse return it.bytes[start_ix..original_i];
+            const prev_codepoint = it.prevCodepointSlice() orelse return .{
+                .slice = it.bytes[start_ix..original_i],
+                .codepoint_len = found,
+            };
             start_ix -= prev_codepoint.len;
         }
 
-        return it.bytes[start_ix..original_i];
+        return .{
+            .slice = it.bytes[start_ix..original_i],
+            .codepoint_len = found,
+        };
     }
 };
 
@@ -99,23 +116,23 @@ test "utf8 bidirectional view on kanji" {
     const s = Utf8BidirectionalView.initUnchecked("東京市");
 
     var it1 = s.iterator();
-    try testing.expect(mem.eql(u8, "東", it1.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "京", it1.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "市", it1.nextCodepointSlice().?));
+    try testing.expectEqualStrings(it1.nextCodepointSlice().?, "東");
+    try testing.expectEqualStrings(it1.nextCodepointSlice().?, "京");
+    try testing.expectEqualStrings(it1.nextCodepointSlice().?, "市");
     try testing.expect(it1.nextCodepointSlice() == null);
-    try testing.expect(mem.eql(u8, "市", it1.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "京", it1.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "東", it1.prevCodepointSlice().?));
+    try testing.expectEqualStrings(it1.prevCodepointSlice().?, "市");
+    try testing.expectEqualStrings(it1.prevCodepointSlice().?, "京");
+    try testing.expectEqualStrings(it1.prevCodepointSlice().?, "東");
     try testing.expect(it1.prevCodepointSlice() == null);
 
     var it2 = s.iterator();
-    try testing.expect(it2.nextCodepoint().? == 0x6771);
-    try testing.expect(it2.nextCodepoint().? == 0x4eac);
-    try testing.expect(it2.nextCodepoint().? == 0x5e02);
+    try testing.expectEqual(it2.nextCodepoint().?, 0x6771);
+    try testing.expectEqual(it2.nextCodepoint().?, 0x4eac);
+    try testing.expectEqual(it2.nextCodepoint().?, 0x5e02);
     try testing.expect(it2.nextCodepoint() == null);
-    try testing.expect(it2.prevCodepoint().? == 0x5e02);
-    try testing.expect(it2.prevCodepoint().? == 0x4eac);
-    try testing.expect(it2.prevCodepoint().? == 0x6771);
+    try testing.expectEqual(it2.prevCodepoint().?, 0x5e02);
+    try testing.expectEqual(it2.prevCodepoint().?, 0x4eac);
+    try testing.expectEqual(it2.prevCodepoint().?, 0x6771);
     try testing.expect(it2.prevCodepoint() == null);
 }
 
@@ -123,68 +140,70 @@ test "utf8 bidirectional view on ascii" {
     const s = Utf8BidirectionalView.initUnchecked("abc");
 
     var it1 = s.iterator();
-    try testing.expect(mem.eql(u8, "a", it1.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "b", it1.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "c", it1.nextCodepointSlice().?));
+    try testing.expectEqualStrings(it1.nextCodepointSlice().?, "a");
+    try testing.expectEqualStrings(it1.nextCodepointSlice().?, "b");
+    try testing.expectEqualStrings(it1.nextCodepointSlice().?, "c");
     try testing.expect(it1.nextCodepointSlice() == null);
-    try testing.expect(mem.eql(u8, "c", it1.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "b", it1.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "a", it1.prevCodepointSlice().?));
+    try testing.expectEqualStrings(it1.prevCodepointSlice().?, "c");
+    try testing.expectEqualStrings(it1.prevCodepointSlice().?, "b");
+    try testing.expectEqualStrings(it1.prevCodepointSlice().?, "a");
     try testing.expect(it1.prevCodepointSlice() == null);
 
     var it2 = s.iterator();
-    try testing.expect(it2.nextCodepoint().? == 'a');
-    try testing.expect(it2.nextCodepoint().? == 'b');
-    try testing.expect(it2.nextCodepoint().? == 'c');
+    try testing.expectEqual(it2.nextCodepoint().?, 'a');
+    try testing.expectEqual(it2.nextCodepoint().?, 'b');
+    try testing.expectEqual(it2.nextCodepoint().?, 'c');
     try testing.expect(it2.nextCodepoint() == null);
-    try testing.expect(it2.prevCodepoint().? == 'c');
-    try testing.expect(it2.prevCodepoint().? == 'b');
-    try testing.expect(it2.prevCodepoint().? == 'a');
+    try testing.expectEqual(it2.prevCodepoint().?, 'c');
+    try testing.expectEqual(it2.prevCodepoint().?, 'b');
+    try testing.expectEqual(it2.prevCodepoint().?, 'a');
     try testing.expect(it2.prevCodepoint() == null);
 }
 
 test "utf8 bidirectional view on mixed" {
     const s = Utf8BidirectionalView.initUnchecked("リズムにyeah");
     var it = s.iterator();
-    try testing.expect(mem.eql(u8, "リ", it.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "ズ", it.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "ム", it.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "に", it.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "y", it.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "e", it.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "a", it.nextCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "h", it.nextCodepointSlice().?));
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "リ");
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "ズ");
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "ム");
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "に");
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "y");
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "e");
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "a");
+    try testing.expectEqualStrings(it.nextCodepointSlice().?, "h");
     try testing.expect(it.nextCodepointSlice() == null);
-    try testing.expect(mem.eql(u8, "h", it.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "a", it.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "e", it.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "y", it.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "に", it.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "ム", it.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "ズ", it.prevCodepointSlice().?));
-    try testing.expect(mem.eql(u8, "リ", it.prevCodepointSlice().?));
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "h");
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "a");
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "e");
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "y");
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "に");
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "ム");
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "ズ");
+    try testing.expectEqualStrings(it.prevCodepointSlice().?, "リ");
     try testing.expect(it.prevCodepointSlice() == null);
 }
 
 test "utf8 bidirectional view peek" {
     const s = Utf8BidirectionalView.initUnchecked("てtoらpoっど");
     var it = s.iterator();
-    try testing.expect(mem.eql(u8, "て", it.peekForward(1)));
-    try testing.expect(mem.eql(u8, "てt", it.peekForward(2)));
-    try testing.expect(mem.eql(u8, "てto", it.peekForward(3)));
-    try testing.expect(mem.eql(u8, "てtoら", it.peekForward(4)));
-    try testing.expect(mem.eql(u8, "てtoらp", it.peekForward(5)));
-    try testing.expect(mem.eql(u8, "てtoらpo", it.peekForward(6)));
-    try testing.expect(mem.eql(u8, "てtoらpoっ", it.peekForward(7)));
-    try testing.expect(mem.eql(u8, "てtoらpoっど", it.peekForward(8)));
-    try testing.expect(mem.eql(u8, "てtoらpoっど", it.peekForward(99999)));
+    try testing.expectEqualStrings("て", it.peekForward(1).slice);
+    try testing.expectEqualStrings("てt", it.peekForward(2).slice);
+    try testing.expectEqualStrings("てto", it.peekForward(3).slice);
+    try testing.expectEqualStrings("てtoら", it.peekForward(4).slice);
+    try testing.expectEqualStrings("てtoらp", it.peekForward(5).slice);
+    try testing.expectEqualStrings("てtoらpo", it.peekForward(6).slice);
+    try testing.expectEqualStrings("てtoらpoっ", it.peekForward(7).slice);
+    try testing.expectEqualStrings("てtoらpoっど", it.peekForward(8).slice);
+    try testing.expectEqualStrings("てtoらpoっど", it.peekForward(99999).slice);
+    try testing.expectEqual(8, it.peekForward(99999).codepoint_len);
     _ = it.nextCodepointSlice();
     _ = it.nextCodepointSlice();
     _ = it.nextCodepointSlice();
     _ = it.nextCodepointSlice();
-    try testing.expect(mem.eql(u8, "ら", it.peekBack(1)));
-    try testing.expect(mem.eql(u8, "oら", it.peekBack(2)));
-    try testing.expect(mem.eql(u8, "toら", it.peekBack(3)));
-    try testing.expect(mem.eql(u8, "てtoら", it.peekBack(4)));
-    try testing.expect(mem.eql(u8, "てtoら", it.peekBack(99999)));
+    try testing.expectEqualStrings("ら", it.peekBack(1).slice);
+    try testing.expectEqualStrings("oら", it.peekBack(2).slice);
+    try testing.expectEqualStrings("toら", it.peekBack(3).slice);
+    try testing.expectEqualStrings("てtoら", it.peekBack(4).slice);
+    try testing.expectEqualStrings("てtoら", it.peekBack(99999).slice);
+    try testing.expectEqual(4, it.peekBack(99999).codepoint_len);
 }
