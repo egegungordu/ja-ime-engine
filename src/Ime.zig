@@ -26,25 +26,23 @@ pub fn deinit(self: *Self) void {
 /// Only accepts one valid UTF-8 character at a time.
 pub fn insert(self: *Self, s: []const u8) !void {
     try self.input.insert(s);
-    if (self.matchBack(4)) |match| {
-        switch (match.original_codepoint_len) {
-            2 => {
-                // Special case for two codepoints:
-                //  If the matched slice is a repeat (e.g. "tt", "mm", except for "nn"),
-                //  we need to only replace the first half of the slice
-                //
-                // Example:
-                // - wrong:   tt -> っ    (replace two)
-                // - correct: tt -> っt   (replace first half only)
-                if (match.original_slice[0] != 'n' and areFirstTwoCodepointsSame(match.original_slice)) {
-                    self.input.moveCursorBack(1);
-                    try self.input.replaceBack(1, match.matched_slice);
-                    self.input.moveCursorForward(1);
-                } else {
-                    try self.input.replaceBack(2, match.matched_slice);
-                }
-            },
-            else => try self.input.replaceBack(match.original_codepoint_len, match.matched_slice),
+    const result = self.peekBackTransliterable(4) orelse return;
+    var it = utf8.createUtf8ShrinkingIterator(result.slice);
+    while (it.next()) |segment| {
+        const isRepeatCase =
+            segment.codepoint_len == 2 and
+            segment.slice[0] != 'n' and
+            areFirstTwoCodepointsSame(segment.slice);
+        const isNCase =
+            segment.codepoint_len == 2 and
+            segment.slice[0] == 'n';
+
+        if (isRepeatCase) {
+            if (try self.transliterateRepeat(segment)) break;
+        } else if (isNCase) {
+            if (try self.transliterateN(segment)) break;
+        } else {
+            if (try self.transliterateBasicMatch(segment)) break;
         }
     }
 }
@@ -65,6 +63,7 @@ pub fn moveCursorBack(self: *Self) void {
 fn isTransliterable(s: []const u8) bool {
     return trans.transliterables.get(s) != null;
 }
+
 const PeekBackTransliterableResult = struct {
     slice: []const u8,
     codepoint_len: usize,
@@ -82,6 +81,7 @@ fn peekBackTransliterable(self: *Self, n: usize) ?PeekBackTransliterableResult {
     for (0..n) |i| {
         const peeked = self.input.peekBackOne(i);
         if (peeked.codepoint_len == 0 or !isTransliterable(peeked.slice)) {
+            if (total_bytes == 0) return null;
             return PeekBackTransliterableResult{
                 .slice = @as([*]const u8, @ptrCast(last_slice.ptr))[0..total_bytes],
                 .codepoint_len = total_codepoint_len,
@@ -91,6 +91,7 @@ fn peekBackTransliterable(self: *Self, n: usize) ?PeekBackTransliterableResult {
         total_bytes += peeked.slice.len;
         last_slice = peeked.slice;
     }
+    if (total_bytes == 0) return null;
     return PeekBackTransliterableResult{
         .slice = @as([*]const u8, @ptrCast(last_slice))[0..total_bytes],
         .codepoint_len = total_codepoint_len,
@@ -101,31 +102,40 @@ fn matchKana(s: []const u8) ?[]const u8 {
     return trans.transliteration_map.get(s);
 }
 
-const MatchBackResult = struct {
-    original_slice: []const u8,
-    original_codepoint_len: usize,
-    matched_slice: []const u8,
-};
-
-/// Tries to match the biggest transliterable slice in the last n characters of the input buffer.
-///
-/// Example (n = 2)
-/// - "kya" -> .{ "ya", 2, "や" }
-/// - "んi" -> .{ "i", 1, "い" }
-fn matchBack(self: *Self, n: usize) ?MatchBackResult {
-    if (peekBackTransliterable(self, n)) |result| {
-        if (result.codepoint_len == 0) {
-            return null;
-        }
-        if (matchKana(result.slice)) |match| {
-            return .{
-                .original_slice = result.slice,
-                .original_codepoint_len = result.codepoint_len,
-                .matched_slice = match,
-            };
-        }
+fn transliterateRepeat(self: *Self, segment: utf8.Segment) !bool {
+    // might not need match here, since all repeats MIGHT create sokuon
+    if (matchKana(segment.slice)) |match| {
+        self.input.moveCursorBack(1);
+        try self.input.replaceBack(1, match);
+        self.input.moveCursorForward(1);
+        return true;
     }
-    return null;
+    return false;
+}
+
+fn transliterateN(self: *Self, segment: utf8.Segment) !bool {
+    switch (segment.slice[1]) {
+        'y' => {},
+        'a', 'i', 'u', 'e', 'o', 'n' => if (matchKana(segment.slice)) |match| {
+            try self.input.replaceBack(2, match);
+            return true;
+        },
+        else => {
+            self.input.moveCursorBack(1);
+            try self.input.replaceBack(1, "ん");
+            self.input.moveCursorForward(1);
+            return true;
+        },
+    }
+    return false;
+}
+
+fn transliterateBasicMatch(self: *Self, segment: utf8.Segment) !bool {
+    if (matchKana(segment.slice)) |match| {
+        try self.input.replaceBack(segment.codepoint_len, match);
+        return true;
+    }
+    return false;
 }
 
 /// Returns true if the first two codepoints in the slice are the same.
@@ -144,7 +154,10 @@ test "ime" {
     var ime = Self.init(std.testing.allocator);
     defer ime.deinit();
 
-    for ("kya") |c| {
+    // cekosyalilastiramadiklarimizdanmisiniz
+    // せこしゃぃぁｓちらまぢｋぁりみｚだんみしにｚ
+
+    for ("cekosyalilastiramadiklarimizdanmisiniz") |c| {
         try ime.insert(&.{c});
         std.debug.print("{s}\n", .{ime.input.buf.items});
     }
@@ -178,13 +191,20 @@ test "insertion with moving cursor" {
     try std.testing.expectEqualStrings("きぃc", ime.input.buf.items);
 }
 
+test "random transliterations" {
+    try testFromFile("./test-data/random-transliterations.txt");
+}
+
 test "all valid transliterations" {
-    const file = @embedFile("./test-data/transliterations.txt");
+    try testFromFile("./test-data/transliterations.txt");
+}
+
+fn testFromFile(comptime path: []const u8) !void {
+    const file = @embedFile(path);
 
     var last_comment: ?[]const u8 = null;
     var lines = std.mem.split(u8, file, "\n");
 
-    // Create a FSM instance for testing
     var ime = Self.init(std.testing.allocator);
     defer ime.deinit();
 
@@ -207,7 +227,7 @@ test "all valid transliterations" {
             try ime.insert(&.{c});
         }
 
-        std.debug.print("Testing romaji: {s} -> hiragana: {s}\n", .{ romaji, hiragana });
+        std.debug.print("\nTesting romaji: {s} -> hiragana: {s}", .{ romaji, hiragana });
 
         // Verify output
         try std.testing.expectEqualStrings(hiragana, ime.input.buf.items);

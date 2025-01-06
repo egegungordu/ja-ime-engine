@@ -113,6 +113,12 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "kye", "きぇ" },
     .{ "kyo", "きょ" },
 
+    .{ "sya", "しゃ" },
+    .{ "syi", "しぃ"},
+    .{ "syu", "しゅ" },
+    .{ "sye", "しぇ" },
+    .{ "syo", "しょ" },
+
     .{ "nya", "にゃ" },
     .{ "nyi", "にぃ" },
     .{ "nyu", "にゅ" },
@@ -221,6 +227,12 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "dwe", "どぇ" },
     .{ "dwo", "どぉ" },
 
+    .{ "ca", "か" },
+    .{ "ci", "し" },
+    .{ "cu", "く" },
+    .{ "ce", "せ" },
+    .{ "co", "こ" },
+
     .{ "qa", "くぁ" },
     .{ "qi", "くぃ" },
     .{ "qu", "く" },
@@ -281,7 +293,7 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "lye", "ぇ" },
     .{ "lyo", "ょ" },
 
-    // small tsu with repetition
+    // sokuon with repetition
     // for all consonants
     .{ "kk", "っ" },
     .{ "ss", "っ" },
