@@ -1,6 +1,6 @@
-# ja-ime-engine
+# Jaime
 
-A Japanese IME (Input Method Editor) library for Zig projects, focusing on romaji to hiragana conversion.
+A Japanese IME (Input Method Editor) engine for Zig projects, focusing on romaji to hiragana/full-width character conversion.
 
 <table>
 <tr>
@@ -34,14 +34,14 @@ The minimum Zig version required is 0.13.0.
 You first need to add zig-ime-ja as a dependency in your `build.zig.zon` file:
 
 ```bash
-zig fetch --save git+https://github.com/egegungordu/ja-ime-engine
+zig fetch --save git+https://github.com/egegungordu/jaime
 ```
 
 Then instantiate the dependency in your `build.zig`:
 
 ```zig
-const ime = b.dependency("ja-ime-engine", .{});
-exe.root_module.addImport("romaji_parser", ime.module("romaji_parser"));
+const jaime = b.dependency("ja-ime-engine", .{});
+exe.root_module.addImport("jaime", jaime.module("jaime"));
 ```
 
 ## Usage
@@ -49,47 +49,44 @@ exe.root_module.addImport("romaji_parser", ime.module("romaji_parser"));
 The library provides a simple API for converting romaji (Latin characters) to hiragana:
 
 ```zig
-const romaji_parser = @import("romaji_parser");
+const jaime = @import("jaime");
 
 test "Basic romaji to hiragana conversion" {
-    const allocator = std.testing.allocator;
+    var ime = jaime.init(std.testing.allocator);
+    defer ime.deinit();
 
-    const input = "konnnichiha";
-    // returns owned slice
-    const result = try romaji_parser.parseRomaji(allocator, input);
-    defer allocator.free(result);
+    for ("konnnichiha") |c| {
+        try ime.insert(&.{c});
+        std.debug.print("{s}\n", .{ime.input.buf.items});
+    }
 
-    try std.testing.expectEqualStrings("こんにちは", result);
+    try std.testing.expectEqualStrings("こんにちは", ime.input.buf.items);
 }
 ```
 
 ## Features
 
-- Romaji to hiragana conversion based on Google IME mapping
-- Efficient FSM (Finite State Machine) based parsing
+- Romaji to hiragana/full-width character conversion based on Google IME mapping
 - Support for common Japanese input patterns:
   - Basic hiragana (あ、い、う、え、お、か、き、く...)
+    - a -> あ
+    - ka -> か
   - Small hiragana (ゃ、ゅ、ょ...)
-  - Double consonants (っ)
-  - N-consonant (ん)
-
-## Implementation Details
-
-The library uses a finite state machine to parse romaji input and convert it to hiragana. The implementation is based on the following components:
-
-- `RomajiParseFsm`: Core FSM implementation for parsing romaji input
-- `TransliterationMap`: Static mapping of romaji to hiragana based on Google IME
-- `SmallTransliterationMap`: Mapping for small hiragana characters
-
-The FSM handles various input states including:
-
-- Single consonants (k, s, t, etc.)
-- Palatalized consonants (ky, py, etc.)
-- Special consonants (n, ch, ts, etc.)
+    - xya -> や
+    - li -> ぃ
+  - Sokuon (っ)
+    - tte -> って
+  - Full-width characters
+    - k -> ｋ
+    - 1 -> １
+  - Punctuation
+    - . -> 。
+    - ? -> ？
+    - [ -> 「
 
 ## Contributing
 
-Contributions are welcome! Please feel free to submit a Pull Request.
+Contributions are welcome! Please feel free to open an issue or submit a Pull Request.
 
 ## Acknowledgments
 

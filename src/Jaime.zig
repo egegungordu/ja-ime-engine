@@ -188,19 +188,6 @@ fn areFirstTwoCodepointsSame(it: *unicode.Utf8Iterator) !bool {
     return std.mem.eql(u8, first, second);
 }
 
-test "ime" {
-    var ime = Self.init(std.testing.allocator);
-    defer ime.deinit();
-
-    // cekosyalilastiramadiklarimizdanmisiniz
-    // せこしゃぃぁｓちらまぢｋぁりみｚだんみしにｚ
-
-    for ("cekosyalilastiramadiklarimizdanmisiniz") |c| {
-        try ime.insert(&.{c});
-        std.debug.print("{s}\n", .{ime.input.buf.items});
-    }
-}
-
 test "firstCodepointEqual" {
     var it = unicode.Utf8Iterator{ .bytes = "abc", .i = 0 };
     try testing.expect(try firstCodepointEqual(&it, "a"));
