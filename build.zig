@@ -14,11 +14,8 @@ pub fn build(b: *std.Build) void {
 
     _ = jaime;
 
-    // Add option to build wasm
-    const build_wasm = b.option(bool, "lib-wasm", "Build the WebAssembly library") orelse false;
-    if (build_wasm) {
-        buildWasmLib(b);
-    }
+    buildWasmLib(b);
+    buildTests(b, target, optimize);
 }
 
 fn buildWasmLib(b: *std.Build) void {
@@ -44,4 +41,19 @@ fn buildWasmLib(b: *std.Build) void {
     exe.max_memory = std.wasm.page_size * number_of_pages;
 
     b.installArtifact(exe);
+}
+
+fn buildTests(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.builtin.Mode) void {
+    // Creates a step for unit testing. This only builds the test executable
+    // but does not run it.
+    const unit_tests = b.addTest(.{
+        .root_source_file = b.path("src/lib.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const run_unit_tests = b.addRunArtifact(unit_tests);
+
+    const test_step = b.step("test", "Run unit tests");
+    test_step.dependOn(&run_unit_tests.step);
 }
