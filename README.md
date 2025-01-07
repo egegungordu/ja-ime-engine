@@ -103,11 +103,11 @@ ime.deleteForward();    // Delete the next character
 
 ### WebAssembly Bindings
 
-For web applications, you can build and use the WebAssembly bindings:
+For web applications, you can build the WebAssembly bindings:
 
 ```bash
 # Build the WebAssembly library
-zig build -Dlib-wasm
+zig build
 ```
 
 For a complete example of how to use the WebAssembly bindings in a web application, check out the [web example](examples/web/index.js).
@@ -176,6 +176,14 @@ for (const char of text) {
   });
 }
 // Final result is "か"
+```
+
+## Testing
+
+To run the test suite:
+
+```bash
+zig build test --summary new
 ```
 
 ## Features
