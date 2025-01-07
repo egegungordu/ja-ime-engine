@@ -11,7 +11,7 @@ pub fn bufConvert(buf: []u8, s: []const u8) ![]const u8 {
 
     var it = unicode.Utf8View.initUnchecked(s).iterator();
     while (it.nextCodepointSlice()) |slice| {
-        try ime.insert(slice);
+        _ = try ime.insert(slice);
     }
 
     return ime.input.buf.items();
@@ -25,7 +25,7 @@ pub fn allocConvert(allocator: mem.Allocator, s: []const u8) ![]const u8 {
 
     var it = unicode.Utf8View.initUnchecked(s).iterator();
     while (it.nextCodepointSlice()) |slice| {
-        try ime.insert(slice);
+        _ = try ime.insert(slice);
     }
 
     return allocator.dupe(u8, ime.input.buf.items());
