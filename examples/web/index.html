@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Zig WASM Demo</title>
+    <style>
+      body {
+        font-family: Arial, sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 20px;
+      }
+      .container {
+        margin-top: 20px;
+      }
+      #output {
+        margin-top: 10px;
+        padding: 10px;
+        border: 1px solid #ccc;
+        min-height: 50px;
+      }
+      #input {
+        user-select: none;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        -ms-user-select: none;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Zig WebAssembly Demo</h1>
+    <div class="container">
+      <input type="file" id="wasmFile" accept=".wasm" />
+      <br /><br />
+      <input type="text" id="input" placeholder="Enter text..." />
+      <div id="output"></div>
+    </div>
+    <script src="index.js"></script>
+  </body>
+</html>

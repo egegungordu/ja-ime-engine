@@ -83,17 +83,99 @@ var ime = jaime.Ime(.borrowed).init(&buf);
 // no deinit needed for borrowed buffers
 
 // Both versions support the same API
-try ime.insert("k");
-try ime.insert("o");
-try ime.insert("n");
+const result = try ime.insert("k");
+// result contains:
+// - deleted_codepoints: number of codepoints deleted
+// - deletion_direction: forward/backward/null
+// - inserted_text: the actual text that was inserted
+
+const result2 = try ime.insert("o");
+const result3 = try ime.insert("n");
 try std.testing.expectEqualStrings("こん", ime.input.buf.items());
 
 // Cursor movement and editing
-ime.moveCursorBack();   // Move cursor left
+ime.moveCursorBack(1);   // Move cursor left n positions
 try ime.insert("y");    // Insert at cursor
 ime.clear();            // Clear the buffer
 ime.deleteBack();       // Delete the last character
 ime.deleteForward();    // Delete the next character
+```
+
+### WebAssembly Bindings
+
+For web applications, you can build and use the WebAssembly bindings:
+
+```bash
+# Build the WebAssembly library
+zig build -Dlib-wasm
+```
+
+For a complete example of how to use the WebAssembly bindings in a web application, check out the [web example](examples/web/index.js).
+
+The WebAssembly library provides the following functions:
+
+```javascript
+// Initialize the IME
+init();
+
+// Get pointer to input buffer for writing input text
+getInputBufferPointer();
+
+// Insert text at current position
+// length: number of bytes to read from input buffer
+insert(length);
+
+// Get information about the last insertion
+getDeletedCodepoints(); // Number of codepoints deleted
+getDeletionDirection(); // 0: none, 1: forward, 2: backward
+getInsertedTextLength(); // Length of inserted text in bytes
+getInsertedTextPointer(); // Pointer to inserted text
+
+// Cursor movement and editing
+deleteBack(); // Delete character before cursor
+deleteForward(); // Delete character after cursor
+moveCursorBack(n); // Move cursor back n positions
+moveCursorForward(n); // Move cursor forward n positions
+```
+
+Example usage in JavaScript:
+
+```javascript
+// Initialize
+init();
+
+// Get input buffer
+const inputPtr = getInputBufferPointer();
+const inputBuffer = new Uint8Array(memory.buffer, inputPtr, 64);
+
+// Write and insert characters one by one
+const text = "ka";
+for (const char of text) {
+  // Write single character to buffer
+  const bytes = new TextEncoder().encode(char);
+  inputBuffer.set(bytes);
+
+  // Insert and get result
+  insert(bytes.length);
+
+  // Get the inserted text
+  const insertedLength = getInsertedTextLength();
+  const insertedPtr = getInsertedTextPointer();
+  const insertedText = new TextDecoder().decode(
+    new Uint8Array(memory.buffer, insertedPtr, insertedLength)
+  );
+
+  // Check if any characters were deleted
+  const deletedCount = getDeletedCodepoints();
+  const deletionDir = getDeletionDirection();
+
+  console.log({
+    inserted: insertedText,
+    deleted: deletedCount,
+    direction: deletionDir,
+  });
+}
+// Final result is "か"
 ```
 
 ## Features
