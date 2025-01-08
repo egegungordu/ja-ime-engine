@@ -42,7 +42,5 @@ test "allocConvert" {
     const res = try allocConvert(std.testing.allocator, "beibi-");
     defer std.testing.allocator.free(res);
 
-    std.debug.print("{s}\n", .{res});
-
     try std.testing.expectEqualSlices(u8, res, "べいびー");
 }

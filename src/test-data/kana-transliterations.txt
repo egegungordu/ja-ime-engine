@@ -261,3 +261,41 @@ lyi ぃ
 lyu ゅ
 lye ぇ
 lyo ょ
+
+# Group 7: Sokuon (small tsu) with repeated consonants
+kk っｋ
+qq っｑ
+ss っｓ
+tt っｔ
+pp っｐ
+bb っｂ
+dd っｄ
+ff っｆ
+gg っｇ
+hh っｈ
+jj っｊ
+kk っｋ
+ll っｌ
+xx っｘ
+zz っｚ
+cc っｃ
+mm っｍ
+
+# Group 8: N followed by consonants
+nk んｋ
+nq んｑ
+ns んｓ
+nt んｔ
+np んｐ
+nb んｂ
+nd んｄ
+nf んｆ
+ng んｇ
+nh んｈ
+nj んｊ
+nk んｋ
+nl んｌ
+nx んｘ
+nz んｚ
+nc んｃ
+nm んｍ

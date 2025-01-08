@@ -12,7 +12,7 @@ pub const transliterables = std.StaticStringMap(void).initComptime(.{
     // consonants
     .{"ｋ"}, .{"ｓ"}, .{"ｔ"}, .{"ｎ"}, .{"ｈ"}, .{"ｍ"}, .{"ｙ"}, 
     .{"ｒ"}, .{"ｗ"}, .{"ｇ"}, .{"ｚ"}, .{"ｄ"}, .{"ｂ"}, .{"ｐ"}, 
-    .{"ｎ"}, .{"ｃ"}, .{"ｑ"}, .{"ｊ"}, .{"ｖ"},
+    .{"ｎ"}, .{"ｃ"}, .{"ｑ"}, .{"ｊ"}, .{"ｖ"}, .{"ｆ"},
 
     // small kana modifier
     .{"ｘ"}, .{"ｌ"},
@@ -376,6 +376,7 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     // sokuon with repetition
     // for all consonants
     .{ "ｋｋ", "っｋ" },
+    .{ "ｑｑ", "っｑ" },
     .{ "ｓｓ", "っｓ" },
     .{ "ｔｔ", "っｔ" },
     .{ "ｐｐ", "っｐ" },
@@ -392,7 +393,9 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｃｃ", "っｃ" },
     .{ "ｍｍ", "っｍ" },
 
+    // n with all consonants
     .{ "ｎｋ", "んｋ" },
+    .{ "ｎｑ", "んｑ" },
     .{ "ｎｓ", "んｓ" },
     .{ "ｎｔ", "んｔ" },
     .{ "ｎｐ", "んｐ" },
