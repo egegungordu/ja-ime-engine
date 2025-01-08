@@ -48,7 +48,6 @@ class JapaneseIME {
 
     // Get the result
     const deletedCodepoints = this.wasmInstance.exports.getDeletedCodepoints();
-    const deletionDirection = this.wasmInstance.exports.getDeletionDirection();
     const insertedTextLength =
       this.wasmInstance.exports.getInsertedTextLength();
     const insertedTextPtr = this.wasmInstance.exports.getInsertedTextPointer();
@@ -63,12 +62,6 @@ class JapaneseIME {
 
     return {
       deletedCodepoints,
-      deletionDirection:
-        deletionDirection === 0
-          ? null
-          : deletionDirection === 1
-          ? "forward"
-          : "backward",
       insertedText,
     };
   }
@@ -195,14 +188,8 @@ class InputFieldManager {
 
     // Handle deletions first
     if (result.deletedCodepoints > 0) {
-      const deleteStart =
-        result.deletionDirection === "backward"
-          ? pos - result.deletedCodepoints
-          : pos;
-      const deleteEnd =
-        result.deletionDirection === "backward"
-          ? pos
-          : pos + result.deletedCodepoints;
+      const deleteStart = pos - result.deletedCodepoints;
+      const deleteEnd = pos;
       this.input.value =
         this.input.value.slice(0, deleteStart) +
         this.input.value.slice(deleteEnd);

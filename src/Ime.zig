@@ -27,36 +27,23 @@ pub fn Ime(comptime tag: utf8_input.StorageTag) type {
             self.input.deinit();
         }
 
-        pub const InsertResult = struct {
-            // Number of codepoints deleted during the operation
+        pub const MatchModification = struct {
             deleted_codepoints: usize,
-
-            // The direction of deletion (can be forward or backward)
-            deletion_direction: ?enum { forward, backward },
-
-            // The actual characters that were inserted (as a slice)
             inserted_text: []const u8,
         };
 
         /// Inserts a slice into the input buffer, doing transliteration if possible.
         /// Only accepts one valid UTF-8 character at a time.
-        pub fn insert(self: *Self, s: []const u8) !InsertResult {
-            var result = InsertResult{
-                .deleted_codepoints = 0,
-                .deletion_direction = null,
-                .inserted_text = "",
-            };
-
-            const full_width = matchFullWidth(s) orelse return result;
-            try self.input.insert(full_width);
-            result.inserted_text = full_width;
-
-            const transliterable = self.peekBackTransliterable(4) orelse return result;
+        pub fn insert(self: *Self, s: []const u8) !?MatchModification {
+            const full_width_match = try self.tryFullWidthMatch(s) orelse return null;
+            const transliterable = self.peekBackTransliterable(4) orelse return full_width_match;
             var it = utf8.createUtf8ShrinkingIterator(transliterable.slice);
             while (it.next()) |segment| {
-                if (try self.transliterateMatch(segment, &result)) break;
+                if (try self.tryKanaMatch(segment)) |modification| {
+                    return modification;
+                }
             }
-            return result;
+            return full_width_match;
         }
 
         pub fn clear(self: *Self) void {
@@ -113,22 +100,31 @@ pub fn Ime(comptime tag: utf8_input.StorageTag) type {
             };
         }
 
-        /// Transliterates matches
+        fn tryFullWidthMatch(self: *Self, s: []const u8) !?MatchModification {
+            if (getFullWidthMatch(s)) |match| {
+                try self.input.insert(match);
+                return .{
+                    .deleted_codepoints = 0,
+                    .inserted_text = match,
+                };
+            }
+            return null;
+        }
+
+        /// Transliterates kana matches
         ///
         /// - ｋｕ -> く
         /// - ｋｙｏ -> きょ
         /// - ａ -> あ
-        fn transliterateMatch(self: *Self, segment: utf8.Segment, result: *InsertResult) !bool {
-            if (matchKana(segment.it.bytes)) |match| {
+        fn tryKanaMatch(self: *Self, segment: utf8.Segment) !?MatchModification {
+            if (getKanaMatch(segment.it.bytes)) |match| {
                 try self.input.replaceBack(segment.codepoint_len, match);
-                if (segment.codepoint_len > 1) {
-                    result.deletion_direction = .backward;
-                    result.deleted_codepoints = segment.codepoint_len - 1;
-                }
-                result.inserted_text = match;
-                return true;
+                return .{
+                    .deleted_codepoints = if (segment.codepoint_len > 1) segment.codepoint_len - 1 else 0,
+                    .inserted_text = match,
+                };
             }
-            return false;
+            return null;
         }
     };
 }
@@ -137,11 +133,11 @@ fn isTransliterable(s: []const u8) bool {
     return trans.transliterables.get(s) != null;
 }
 
-fn matchKana(s: []const u8) ?[]const u8 {
+fn getKanaMatch(s: []const u8) ?[]const u8 {
     return trans.transliteration_map.get(s);
 }
 
-fn matchFullWidth(s: []const u8) ?[]const u8 {
+fn getFullWidthMatch(s: []const u8) ?[]const u8 {
     return trans.full_width_map.get(s);
 }
 
@@ -252,17 +248,20 @@ test "ime: owned - insert result basic" {
     var ime = Ime(.owned).init(std.testing.allocator);
     defer ime.deinit();
 
-    // Test basic transliteration (ａ -> あ)
-    var result = try ime.insert("k");
-    try std.testing.expectEqual(@as(usize, 0), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("ｋ", result.inserted_text);
-    try std.testing.expectEqual(result.deletion_direction, null);
+    // Test basic transliteration (ka -> か)
+    if (try ime.insert("k")) |modification| {
+        try std.testing.expectEqual(@as(usize, 0), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("ｋ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 
-    // Test no modification case
-    result = try ime.insert("a");
-    try std.testing.expectEqual(@as(usize, 1), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("か", result.inserted_text);
-    try std.testing.expectEqual(result.deletion_direction, .backward);
+    if (try ime.insert("a")) |modification| {
+        try std.testing.expectEqual(@as(usize, 1), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("か", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 }
 
 test "ime: owned - insert result complex" {
@@ -270,39 +269,60 @@ test "ime: owned - insert result complex" {
     defer ime.deinit();
 
     // Test double consonant (tt -> っｔ)
-    var result = try ime.insert("t");
-    try std.testing.expectEqual(@as(usize, 0), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("ｔ", result.inserted_text);
+    if (try ime.insert("t")) |modification| {
+        try std.testing.expectEqual(@as(usize, 0), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("ｔ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 
-    result = try ime.insert("t");
-    try std.testing.expectEqual(@as(usize, 1), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("っｔ", result.inserted_text);
+    if (try ime.insert("t")) |modification| {
+        try std.testing.expectEqual(@as(usize, 1), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("っｔ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 
     ime.clear();
 
     // Case 2: nn -> ん
-    result = try ime.insert("n");
-    try std.testing.expectEqual(@as(usize, 0), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("ｎ", result.inserted_text);
+    if (try ime.insert("n")) |modification| {
+        try std.testing.expectEqual(@as(usize, 0), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("ｎ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 
-    result = try ime.insert("n");
-    try std.testing.expectEqual(@as(usize, 1), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("ん", result.inserted_text);
+    if (try ime.insert("n")) |modification| {
+        try std.testing.expectEqual(@as(usize, 1), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("ん", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 
     ime.clear();
 
     // Test compound kana (kyo -> きょ)
-    result = try ime.insert("k");
-    try std.testing.expectEqual(@as(usize, 0), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("ｋ", result.inserted_text);
+    if (try ime.insert("k")) |modification| {
+        try std.testing.expectEqual(@as(usize, 0), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("ｋ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 
-    result = try ime.insert("y");
-    try std.testing.expectEqual(@as(usize, 0), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("ｙ", result.inserted_text);
+    if (try ime.insert("y")) |modification| {
+        try std.testing.expectEqual(@as(usize, 0), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("ｙ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 
-    result = try ime.insert("o");
-    try std.testing.expectEqual(@as(usize, 2), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("きょ", result.inserted_text);
+    if (try ime.insert("o")) |modification| {
+        try std.testing.expectEqual(@as(usize, 2), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("きょ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 }
 
 // Borrowed buffer tests
@@ -398,9 +418,12 @@ test "ime: borrowed - insert result" {
     defer ime.deinit();
 
     // Test basic case
-    const result = try ime.insert("a");
-    try std.testing.expectEqual(@as(usize, 0), result.deleted_codepoints);
-    try std.testing.expectEqualStrings("あ", result.inserted_text);
+    if (try ime.insert("a")) |modification| {
+        try std.testing.expectEqual(@as(usize, 0), modification.deleted_codepoints);
+        try std.testing.expectEqualStrings("あ", modification.inserted_text);
+    } else {
+        try std.testing.expect(false);
+    }
 }
 
 fn testFromFile(comptime tag: utf8_input.StorageTag, comptime path: []const u8) !void {

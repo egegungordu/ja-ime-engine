@@ -86,7 +86,6 @@ var ime = jaime.Ime(.borrowed).init(&buf);
 const result = try ime.insert("k");
 // result contains:
 // - deleted_codepoints: number of codepoints deleted
-// - deletion_direction: forward/backward/null
 // - inserted_text: the actual text that was inserted
 
 const result2 = try ime.insert("o");
@@ -127,7 +126,6 @@ insert(length);
 
 // Get information about the last insertion
 getDeletedCodepoints(); // Number of codepoints deleted
-getDeletionDirection(); // 0: none, 1: forward, 2: backward
 getInsertedTextLength(); // Length of inserted text in bytes
 getInsertedTextPointer(); // Pointer to inserted text
 
@@ -167,12 +165,10 @@ for (const char of text) {
 
   // Check if any characters were deleted
   const deletedCount = getDeletedCodepoints();
-  const deletionDir = getDeletionDirection();
 
   console.log({
     inserted: insertedText,
     deleted: deletedCount,
-    direction: deletionDir,
   });
 }
 // Final result is "か"

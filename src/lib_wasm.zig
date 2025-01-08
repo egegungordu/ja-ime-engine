@@ -14,7 +14,7 @@ export fn getInputBufferPointer() [*]u8 {
 
 // Buffer for the ime
 var ime_buffer = std.mem.zeroes([2048]u8);
-var last_insert_result: Ime(.borrowed).InsertResult = undefined;
+var last_insert_result: ?Ime(.borrowed).MatchModification = undefined;
 
 export fn init() void {
     ime = Ime(.borrowed).init(&ime_buffer);
@@ -26,25 +26,15 @@ export fn insert(length: usize) void {
 }
 
 export fn getDeletedCodepoints() usize {
-    return last_insert_result.deleted_codepoints;
-}
-
-export fn getDeletionDirection() u8 {
-    if (last_insert_result.deletion_direction) |direction| {
-        return switch (direction) {
-            .forward => 1,
-            .backward => 2,
-        };
-    }
-    return 0;
+    return if (last_insert_result) |result| result.deleted_codepoints else 0;
 }
 
 export fn getInsertedTextLength() usize {
-    return last_insert_result.inserted_text.len;
+    return if (last_insert_result) |result| result.inserted_text.len else 0;
 }
 
 export fn getInsertedTextPointer() [*]const u8 {
-    return @ptrCast(last_insert_result.inserted_text.ptr);
+    return @ptrCast(if (last_insert_result) |result| result.inserted_text.ptr else undefined);
 }
 
 export fn deleteBack() void {
