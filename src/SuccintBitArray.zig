@@ -68,14 +68,24 @@ pub fn SuccintBitArrayBuilder(comptime chunk_size: usize) type {
             var bit_count: u32 = 0;
             var remaining_words: usize = num_bytes_minus_one / word_size;
             while (remaining_words > 0) : ({
-                remaining_words -= chunk_size / word_size;
+                remaining_words -= @min(chunk_size / word_size, remaining_words);
                 i += 1;
             }) {
                 const start = chunk_size * i;
-                const end = @min(num_bytes_minus_one, start + word_size);
+                const end = @min(num_bytes_minus_one, start + chunk_size);
                 const word_bytes = self.bit_stack.?.bytes.items[start..end];
                 try self.index.?.append(bit_count);
-                bit_count += @popCount(std.mem.bytesToValue(usize, word_bytes));
+                const uChunkSize = @Type(.{ .Int = .{ .bits = chunk_size * 8, .signedness = .unsigned } });
+                const pop_count = blk: {
+                    if (end - start < chunk_size) {
+                        var buf: [chunk_size]u8 = .{0} ** chunk_size;
+                        @memcpy(buf[0 .. end - start], word_bytes);
+                        break :blk @popCount(std.mem.bytesToValue(uChunkSize, &buf));
+                    } else {
+                        break :blk @popCount(std.mem.bytesToValue(uChunkSize, word_bytes));
+                    }
+                };
+                bit_count += pop_count;
             }
             try self.index.?.append(bit_count);
         }
@@ -112,7 +122,19 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
             }
         }
 
-        pub fn rank1(self: *Self, i: usize) usize {
+        pub fn rank0(self: *Self, i: usize) !usize {
+            if (i >= self.bit_stack.bit_len) {
+                return error.IndexOutOfBounds;
+            }
+
+            return i + 1 - try self.rank1(i);
+        }
+
+        pub fn rank1(self: *Self, i: usize) !usize {
+            if (i >= self.bit_stack.bit_len) {
+                return error.IndexOutOfBounds;
+            }
+
             const chunk_index = i / (chunk_size * 8);
 
             // find the indexed rank up to the chunk
@@ -136,124 +158,374 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
             return rank;
         }
 
-        pub fn rank0(self: *Self, i: usize) usize {
-            return i + 1 - self.rank1(i);
+        /// Returns the position of the i-th 0 bit (1-based index)
+        pub fn select0(self: *Self, i: usize) !usize {
+            if (i == 0) {
+                return error.ZeroNotAllowed;
+            }
+
+            // Binary search to find the chunk containing the target bit
+            var chunk_start: usize = i / (chunk_size * 8);
+            var chunk_end: usize = self.index.items.len - 1;
+            while (chunk_start <= chunk_end) {
+                const chunk_mid = chunk_start + (chunk_end - chunk_start) / 2;
+                const zeros_before_chunk = chunk_mid * chunk_size * 8 - self.index.items[chunk_mid];
+                if (zeros_before_chunk < i) {
+                    chunk_start = chunk_mid + 1;
+                } else {
+                    chunk_end = chunk_mid - 1;
+                }
+            }
+
+            // Linear scan within the chunk to find the byte containing the target bit
+            const target_chunk = chunk_start - 1;
+            const zeros_before_target_chunk = target_chunk * chunk_size * 8 - self.index.items[target_chunk];
+            var remaining_zeros: i32 = @intCast(i - zeros_before_target_chunk);
+            var bytes = self.bit_stack.bytes.items[target_chunk * chunk_size ..];
+            var byte_offset: usize = 0;
+            while (true) : (bytes = bytes[1..]) {
+                if (bytes.len == 0) {
+                    return error.IthZeroNotFound;
+                }
+                const byte = bytes[0];
+                const zeros_in_byte = 8 - @popCount(byte);
+                remaining_zeros -= zeros_in_byte;
+                if (remaining_zeros <= 0) {
+                    remaining_zeros += zeros_in_byte;
+                    break;
+                }
+                byte_offset += 1;
+            }
+
+            return try self.findBitIndex(target_chunk, byte_offset, remaining_zeros, 0);
+        }
+
+        /// Returns the position of the i-th 1 bit (1-based index)
+        pub fn select1(self: *Self, i: usize) !usize {
+            if (i == 0) {
+                return error.ZeroNotAllowed;
+            }
+
+            // Binary search to find the chunk containing the target bit
+            var chunk_start: usize = i / (chunk_size * 8);
+            var chunk_end: usize = self.index.items.len - 1;
+            while (chunk_start <= chunk_end) {
+                const chunk_mid = chunk_start + (chunk_end - chunk_start) / 2;
+                const ones_before_chunk = self.index.items[chunk_mid];
+                if (ones_before_chunk < i) {
+                    chunk_start = chunk_mid + 1;
+                } else {
+                    chunk_end = chunk_mid - 1;
+                }
+            }
+
+            // Linear scan within the chunk to find the byte containing the target bit
+            const target_chunk = chunk_start - 1;
+            const ones_before_target_chunk = self.index.items[target_chunk];
+            var remaining_ones: i32 = @intCast(i - ones_before_target_chunk);
+            var bytes = self.bit_stack.bytes.items[target_chunk * chunk_size ..];
+            var byte_offset: usize = 0;
+            while (true) : (bytes = bytes[1..]) {
+                if (bytes.len == 0) {
+                    return error.IthOneNotFound;
+                }
+                const byte = bytes[0];
+                const ones_in_byte = @popCount(byte);
+                remaining_ones -= ones_in_byte;
+                if (remaining_ones <= 0) {
+                    remaining_ones += ones_in_byte;
+                    break;
+                }
+                byte_offset += 1;
+            }
+
+            return try self.findBitIndex(target_chunk, byte_offset, remaining_ones, 1);
+        }
+
+        /// Find the exact bit position within a byte for the remaining target bits
+        fn findBitIndex(self: *Self, chunk_index: usize, byte_offset: usize, remaining_count: i32, target_bit: u1) !usize {
+            const byte = self.bit_stack.bytes.items[chunk_index * chunk_size + byte_offset];
+            var bit_pos: usize = 0;
+            var bits_to_find = remaining_count;
+
+            // Don't scan past the actual length of the bit array
+            const valid_bits = @min(8, self.bit_stack.bit_len - (chunk_index * chunk_size * 8 + byte_offset * 8));
+            while (bits_to_find > 0 and bit_pos < valid_bits) : (bit_pos += 1) {
+                const bit = @as(u1, @truncate(byte >> @truncate(bit_pos)));
+                if (bit == target_bit) {
+                    bits_to_find -= 1;
+                }
+            }
+
+            if (bits_to_find > 0) {
+                return if (target_bit == 1) error.IthOneNotFound else error.IthZeroNotFound;
+            }
+
+            return chunk_index * chunk_size * 8 + byte_offset * 8 + bit_pos - 1;
         }
     };
 }
 
+const test_chunk_sizes = [_]usize{ 8, 16, 32, 64, 128 };
+
+test "succint bit array: simple rank0" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        try builder.push(1);
+        try builder.push(0);
+        try builder.push(1);
+        try builder.push(1);
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectEqual(0, array.rank0(0));
+        try std.testing.expectEqual(1, array.rank0(1));
+        try std.testing.expectEqual(1, array.rank0(2));
+        try std.testing.expectEqual(1, array.rank0(3));
+    }
+}
+
+test "succint bit array: long rank0" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        for (0..1024) |_| {
+            try builder.push(1);
+            try builder.push(1);
+            try builder.push(0);
+            try builder.push(0);
+        }
+        var array = try builder.build();
+        defer array.deinit();
+        for (0..1024) |i| {
+            try std.testing.expectEqual(i * 2, array.rank0(i * 4));
+            try std.testing.expectEqual(i * 2, array.rank0(i * 4 + 1));
+            try std.testing.expectEqual(i * 2 + 1, array.rank0(i * 4 + 2));
+            try std.testing.expectEqual(i * 2 + 2, array.rank0(i * 4 + 3));
+        }
+    }
+}
+
+test "succint bit array: rank0 out of bounds" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectError(error.IndexOutOfBounds, array.rank0(1024));
+    }
+}
+
 test "succint bit array: simple rank1" {
-    var builder = SuccintBitArrayBuilder(8).init(std.testing.allocator);
-    defer builder.deinit();
-    try builder.push(1);
-    try builder.push(0);
-    try builder.push(1);
-    try builder.push(1);
-    var array = try builder.build();
-    defer array.deinit();
-    try std.testing.expectEqual(1, array.rank1(0));
-    try std.testing.expectEqual(1, array.rank1(1));
-    try std.testing.expectEqual(2, array.rank1(2));
-    try std.testing.expectEqual(3, array.rank1(3));
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        try builder.push(1);
+        try builder.push(0);
+        try builder.push(1);
+        try builder.push(1);
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectEqual(1, array.rank1(0));
+        try std.testing.expectEqual(1, array.rank1(1));
+        try std.testing.expectEqual(2, array.rank1(2));
+        try std.testing.expectEqual(3, array.rank1(3));
+    }
 }
 
 test "succint bit array: long rank1" {
-    var builder = SuccintBitArrayBuilder(8).init(std.testing.allocator);
-    defer builder.deinit();
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
 
-    for (0..1024) |_| {
-        try builder.push(1);
-        try builder.push(1);
-        try builder.push(0);
-        try builder.push(0);
-    }
+        for (0..1024) |_| {
+            try builder.push(1);
+            try builder.push(1);
+            try builder.push(0);
+            try builder.push(0);
+        }
 
-    var array = try builder.build();
-    defer array.deinit();
+        var array = try builder.build();
+        defer array.deinit();
 
-    for (0..1024) |i| {
-        try std.testing.expectEqual((i + 1) * 2 - 1, array.rank1(i * 4));
-        try std.testing.expectEqual((i + 1) * 2, array.rank1(i * 4 + 1));
-        try std.testing.expectEqual((i + 1) * 2, array.rank1(i * 4 + 2));
-        try std.testing.expectEqual((i + 1) * 2, array.rank1(i * 4 + 3));
+        for (0..1024) |i| {
+            try std.testing.expectEqual((i + 1) * 2 - 1, array.rank1(i * 4));
+            try std.testing.expectEqual((i + 1) * 2, array.rank1(i * 4 + 1));
+            try std.testing.expectEqual((i + 1) * 2, array.rank1(i * 4 + 2));
+            try std.testing.expectEqual((i + 1) * 2, array.rank1(i * 4 + 3));
+        }
     }
 }
 
-test "succint bit array: simple rank0" {
-    var builder = SuccintBitArrayBuilder(8).init(std.testing.allocator);
-    defer builder.deinit();
-    try builder.push(1);
-    try builder.push(0);
-    try builder.push(1);
-    try builder.push(1);
-    var array = try builder.build();
-    defer array.deinit();
-    try std.testing.expectEqual(0, array.rank0(0));
-    try std.testing.expectEqual(1, array.rank0(1));
-    try std.testing.expectEqual(1, array.rank0(2));
-    try std.testing.expectEqual(1, array.rank0(3));
+test "succint bit array: rank1 out of bounds" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectError(error.IndexOutOfBounds, array.rank1(1024));
+    }
 }
 
-test "succint bit array: rank0" {
-    var builder = SuccintBitArrayBuilder(8).init(std.testing.allocator);
-    defer builder.deinit();
-    for (0..1024) |_| {
-        try builder.push(1);
+test "succint bit array: simple select1" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
         try builder.push(1);
         try builder.push(0);
-        try builder.push(0);
+        try builder.push(1);
+        try builder.push(1);
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectEqual(0, array.select1(1));
+        try std.testing.expectEqual(2, array.select1(2));
+        try std.testing.expectEqual(3, array.select1(3));
     }
-    var array = try builder.build();
-    defer array.deinit();
-    for (0..1024) |i| {
-        try std.testing.expectEqual(i * 2, array.rank0(i * 4));
-        try std.testing.expectEqual(i * 2, array.rank0(i * 4 + 1));
-        try std.testing.expectEqual(i * 2 + 1, array.rank0(i * 4 + 2));
-        try std.testing.expectEqual(i * 2 + 2, array.rank0(i * 4 + 3));
+}
+
+test "succint bit array: long select1" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        for (0..1024) |_| {
+            try builder.push(1);
+            try builder.push(1);
+            try builder.push(0);
+            try builder.push(0);
+        }
+        try builder.push(1);
+        var array = try builder.build();
+        defer array.deinit();
+
+        for (0..1024) |i| {
+            try std.testing.expectEqual(i * 4, array.select1(i * 2 + 1));
+            try std.testing.expectEqual(i * 4 + 1, array.select1(i * 2 + 2));
+        }
+    }
+}
+
+test "succint bit array: select1 not found" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectError(error.IthOneNotFound, array.select1(1));
+    }
+}
+
+test "succint bit array: select1 zero" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectError(error.ZeroNotAllowed, array.select1(0));
     }
 }
 
 test "succint bit array builder: index" {
     const word_size_in_bits = @bitSizeOf(usize);
 
-    inline for ([_]struct { n: usize, e: []const usize }{
-        .{ .n = 0, .e = &.{0} },
-        .{ .n = 4, .e = &.{0} },
-        .{ .n = word_size_in_bits, .e = &.{0} },
-        .{ .n = word_size_in_bits + 1, .e = &.{ 0, word_size_in_bits } },
-    }) |e| {
-        var builder = SuccintBitArrayBuilder(8).init(std.testing.allocator);
-        defer builder.deinit();
-        for (0..e.n) |_| {
-            try builder.push(1);
+    inline for (test_chunk_sizes) |chunk_size| {
+        inline for ([_]struct { n: usize, e: []const usize }{
+            .{ .n = 0, .e = &.{0} },
+            .{ .n = 4, .e = &.{0} },
+            .{ .n = word_size_in_bits, .e = &.{0} },
+            .{ .n = word_size_in_bits + 1, .e = &.{ 0, word_size_in_bits } },
+        }) |e| {
+            var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+            defer builder.deinit();
+            for (0..e.n) |_| {
+                try builder.push(1);
+            }
+
+            var array = try builder.build();
+            defer array.deinit();
+
+            try std.testing.expectEqualSlices(usize, e.e, array.index.items);
         }
-
-        var array = try builder.build();
-        defer array.deinit();
-
-        try std.testing.expectEqualSlices(usize, e.e, array.index.items);
     }
 }
 
 test "succint bit array: print format" {
-    inline for ([_][]const u8{
-        "111100101010100111",
-        "0000",
-        "1111",
-        "10101",
-        "01010",
-        "1",
-        "0",
-        "",
-    }) |in| {
-        var builder = SuccintBitArrayBuilder(8).init(std.testing.allocator);
-        for (in) |c| {
-            try builder.push(@truncate(c - '0'));
+    inline for (test_chunk_sizes) |chunk_size| {
+        inline for ([_][]const u8{
+            "111100101010100111",
+            "0000",
+            "1111",
+            "10101",
+            "01010",
+            "1",
+            "0",
+            "",
+        }) |in| {
+            var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+            for (in) |c| {
+                try builder.push(@truncate(c - '0'));
+            }
+            var array = try builder.build();
+            defer array.deinit();
+
+            var buf: [100]u8 = undefined;
+            try std.testing.expectEqualStrings(in, try std.fmt.bufPrint(&buf, "{}", .{array}));
+        }
+    }
+}
+
+test "succint bit array: simple select0" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        try builder.push(1);
+        try builder.push(0);
+        try builder.push(1);
+        try builder.push(1);
+        try builder.push(0);
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectEqual(1, array.select0(1));
+        try std.testing.expectEqual(4, array.select0(2));
+    }
+}
+
+test "succint bit array: long select0" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        for (0..1024) |_| {
+            try builder.push(1);
+            try builder.push(1);
+            try builder.push(0);
+            try builder.push(0);
         }
         var array = try builder.build();
         defer array.deinit();
 
-        var buf: [100]u8 = undefined;
-        try std.testing.expectEqualStrings(in, try std.fmt.bufPrint(&buf, "{}", .{array}));
+        for (0..1024) |i| {
+            try std.testing.expectEqual(i * 4 + 2, array.select0(i * 2 + 1));
+            try std.testing.expectEqual(i * 4 + 3, array.select0(i * 2 + 2));
+        }
+    }
+}
+
+test "succint bit array: select0 not found" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        try builder.push(1);
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectError(error.IthZeroNotFound, array.select0(1));
+    }
+}
+
+test "succint bit array: select0 zero" {
+    inline for (test_chunk_sizes) |chunk_size| {
+        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        defer builder.deinit();
+        var array = try builder.build();
+        defer array.deinit();
+        try std.testing.expectError(error.ZeroNotAllowed, array.select0(0));
     }
 }
