@@ -1,10 +1,11 @@
 const std = @import("std");
 const mem = std.mem;
+const BitArray = @import("BitArray.zig");
 
 const word_size = @sizeOf(usize);
 
 /// chunk_size is in bytes
-pub fn SuccintBitArrayBuilder(comptime chunk_size: usize) type {
+pub fn SuccinctBitArrayBuilder(comptime chunk_size: usize) type {
     if (chunk_size < word_size) {
         @compileError("chunk_size must be bigger than " ++ std.fmt.comptimePrint("{}", .{word_size}));
     }
@@ -14,7 +15,7 @@ pub fn SuccintBitArrayBuilder(comptime chunk_size: usize) type {
 
     return struct {
         allocator: mem.Allocator,
-        bit_stack: ?std.BitStack,
+        bit_array: ?BitArray,
         index: ?std.ArrayList(usize),
         was_built: bool,
 
@@ -23,45 +24,45 @@ pub fn SuccintBitArrayBuilder(comptime chunk_size: usize) type {
         pub fn init(allocator: mem.Allocator) Self {
             return .{
                 .allocator = allocator,
-                .bit_stack = std.BitStack.init(allocator),
+                .bit_array = BitArray.init(allocator),
                 .index = std.ArrayList(usize).init(allocator),
                 .was_built = false,
             };
         }
 
         pub fn deinit(self: *Self) void {
-            if (self.bit_stack != null) {
-                self.bit_stack.?.deinit();
+            if (self.bit_array != null) {
+                self.bit_array.?.deinit();
             }
             if (self.index != null) {
                 self.index.?.deinit();
             }
         }
 
-        pub fn push(self: *Self, bit: u1) !void {
+        pub fn append(self: *Self, bit: u1) !void {
             if (self.was_built) {
                 @panic("build was already called");
             }
-            if (self.bit_stack != null) {
-                try self.bit_stack.?.push(bit);
+            if (self.bit_array != null) {
+                try self.bit_array.?.append(bit);
             }
         }
 
-        pub fn build(self: *Self) !SuccintBitArray(chunk_size) {
+        pub fn build(self: *Self) !SuccinctBitArray(chunk_size) {
             if (self.was_built) {
                 @panic("build was already called");
             }
             try self.build_index();
             self.was_built = true;
 
-            const bit_array = SuccintBitArray(chunk_size).init(self.bit_stack.?, self.index.?);
-            self.bit_stack = null;
+            const bit_array = SuccinctBitArray(chunk_size).init(self.bit_array.?, self.index.?);
+            self.bit_array = null;
             self.index = null;
             return bit_array;
         }
 
         fn build_index(self: *Self) !void {
-            const len = self.bit_stack.?.bytes.items.len;
+            const len = self.bit_array.?.bytes.items.len;
             const num_bytes_minus_one: usize = if (len == 0) 0 else len - 1;
             try self.index.?.ensureTotalCapacity(num_bytes_minus_one / chunk_size + 1);
             var i: usize = 0;
@@ -73,7 +74,7 @@ pub fn SuccintBitArrayBuilder(comptime chunk_size: usize) type {
             }) {
                 const start = chunk_size * i;
                 const end = @min(num_bytes_minus_one, start + chunk_size);
-                const word_bytes = self.bit_stack.?.bytes.items[start..end];
+                const word_bytes = self.bit_array.?.bytes.items[start..end];
                 try self.index.?.append(bit_count);
                 const uChunkSize = @Type(.{ .Int = .{ .bits = chunk_size * 8, .signedness = .unsigned } });
                 const pop_count = blk: {
@@ -92,28 +93,28 @@ pub fn SuccintBitArrayBuilder(comptime chunk_size: usize) type {
     };
 }
 
-pub fn SuccintBitArray(comptime chunk_size: usize) type {
+pub fn SuccinctBitArray(comptime chunk_size: usize) type {
     return struct {
-        bit_stack: std.BitStack,
+        bit_array: BitArray,
         index: std.ArrayList(usize),
 
         const Self = @This();
 
-        pub fn init(bit_stack: std.BitStack, index: std.ArrayList(usize)) Self {
+        pub fn init(bit_array: BitArray, index: std.ArrayList(usize)) Self {
             return .{
-                .bit_stack = bit_stack,
+                .bit_array = bit_array,
                 .index = index,
             };
         }
 
         pub fn deinit(self: *Self) void {
-            self.bit_stack.deinit();
+            self.bit_array.deinit();
             self.index.deinit();
         }
 
         pub fn format(self: Self, _: []const u8, _: std.fmt.FormatOptions, writer: anytype) !void {
-            for (self.bit_stack.bytes.items, 0..) |b, i| {
-                const remaining: usize = @min(8, self.bit_stack.bit_len - i * 8);
+            for (self.bit_array.bytes.items, 0..) |b, i| {
+                const remaining: usize = @min(8, self.bit_array.bit_len - i * 8);
                 for (0..remaining) |j| {
                     // why it should be u3: https://github.com/ziglang/zig/issues/7605
                     const shift_by: u3 = @truncate(j);
@@ -122,16 +123,18 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
             }
         }
 
-        pub fn rank0(self: *Self, i: usize) !usize {
-            if (i >= self.bit_stack.bit_len) {
+        /// Returns the number of 0 bits up to the i-th bit (1-based index)
+        pub fn rank0(self: Self, i: usize) !usize {
+            if (i >= self.bit_array.bit_len) {
                 return error.IndexOutOfBounds;
             }
 
             return i + 1 - try self.rank1(i);
         }
 
-        pub fn rank1(self: *Self, i: usize) !usize {
-            if (i >= self.bit_stack.bit_len) {
+        /// Returns the number of 1 bits up to the i-th bit (1-based index)
+        pub fn rank1(self: Self, i: usize) !usize {
+            if (i >= self.bit_array.bit_len) {
                 return error.IndexOutOfBounds;
             }
 
@@ -144,14 +147,14 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
             // to the start of the byte containing the i-th bit
             const start = chunk_index * chunk_size;
             const end: usize = i / 8;
-            const chunk_bytes = self.bit_stack.bytes.items[start..end];
+            const chunk_bytes = self.bit_array.bytes.items[start..end];
             for (chunk_bytes) |b| {
                 rank += @popCount(b);
             }
 
             // then find the additional rank from the byte containing the i-th bit
             // to the end of the byte
-            const last_byte: u8 = self.bit_stack.bytes.items[end];
+            const last_byte: u8 = self.bit_array.bytes.items[end];
             const shift_by: u3 = 7 - @as(u3, @truncate(i % 8));
             rank += @popCount(@bitReverse(last_byte) >> shift_by);
 
@@ -159,7 +162,7 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
         }
 
         /// Returns the position of the i-th 0 bit (1-based index)
-        pub fn select0(self: *Self, i: usize) !usize {
+        pub fn select0(self: Self, i: usize) !usize {
             if (i == 0) {
                 return error.ZeroNotAllowed;
             }
@@ -181,7 +184,7 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
             const target_chunk = chunk_start - 1;
             const zeros_before_target_chunk = target_chunk * chunk_size * 8 - self.index.items[target_chunk];
             var remaining_zeros: i32 = @intCast(i - zeros_before_target_chunk);
-            var bytes = self.bit_stack.bytes.items[target_chunk * chunk_size ..];
+            var bytes = self.bit_array.bytes.items[target_chunk * chunk_size ..];
             var byte_offset: usize = 0;
             while (true) : (bytes = bytes[1..]) {
                 if (bytes.len == 0) {
@@ -201,7 +204,7 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
         }
 
         /// Returns the position of the i-th 1 bit (1-based index)
-        pub fn select1(self: *Self, i: usize) !usize {
+        pub fn select1(self: Self, i: usize) !usize {
             if (i == 0) {
                 return error.ZeroNotAllowed;
             }
@@ -223,7 +226,7 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
             const target_chunk = chunk_start - 1;
             const ones_before_target_chunk = self.index.items[target_chunk];
             var remaining_ones: i32 = @intCast(i - ones_before_target_chunk);
-            var bytes = self.bit_stack.bytes.items[target_chunk * chunk_size ..];
+            var bytes = self.bit_array.bytes.items[target_chunk * chunk_size ..];
             var byte_offset: usize = 0;
             while (true) : (bytes = bytes[1..]) {
                 if (bytes.len == 0) {
@@ -242,14 +245,18 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
             return try self.findBitIndex(target_chunk, byte_offset, remaining_ones, 1);
         }
 
+        pub fn getBit(self: Self, i: usize) !u1 {
+            return self.bit_array.get(i);
+        }
+
         /// Find the exact bit position within a byte for the remaining target bits
-        fn findBitIndex(self: *Self, chunk_index: usize, byte_offset: usize, remaining_count: i32, target_bit: u1) !usize {
-            const byte = self.bit_stack.bytes.items[chunk_index * chunk_size + byte_offset];
+        fn findBitIndex(self: Self, chunk_index: usize, byte_offset: usize, remaining_count: i32, target_bit: u1) !usize {
+            const byte = self.bit_array.bytes.items[chunk_index * chunk_size + byte_offset];
             var bit_pos: usize = 0;
             var bits_to_find = remaining_count;
 
             // Don't scan past the actual length of the bit array
-            const valid_bits = @min(8, self.bit_stack.bit_len - (chunk_index * chunk_size * 8 + byte_offset * 8));
+            const valid_bits = @min(8, self.bit_array.bit_len - (chunk_index * chunk_size * 8 + byte_offset * 8));
             while (bits_to_find > 0 and bit_pos < valid_bits) : (bit_pos += 1) {
                 const bit = @as(u1, @truncate(byte >> @truncate(bit_pos)));
                 if (bit == target_bit) {
@@ -268,14 +275,14 @@ pub fn SuccintBitArray(comptime chunk_size: usize) type {
 
 const test_chunk_sizes = [_]usize{ 8, 16, 32, 64, 128 };
 
-test "succint bit array: simple rank0" {
+test "succinct bit array: simple rank0" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
-        try builder.push(1);
-        try builder.push(0);
-        try builder.push(1);
-        try builder.push(1);
+        try builder.append(1);
+        try builder.append(0);
+        try builder.append(1);
+        try builder.append(1);
         var array = try builder.build();
         defer array.deinit();
         try std.testing.expectEqual(0, array.rank0(0));
@@ -285,15 +292,15 @@ test "succint bit array: simple rank0" {
     }
 }
 
-test "succint bit array: long rank0" {
+test "succinct bit array: long rank0" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         for (0..1024) |_| {
-            try builder.push(1);
-            try builder.push(1);
-            try builder.push(0);
-            try builder.push(0);
+            try builder.append(1);
+            try builder.append(1);
+            try builder.append(0);
+            try builder.append(0);
         }
         var array = try builder.build();
         defer array.deinit();
@@ -306,9 +313,9 @@ test "succint bit array: long rank0" {
     }
 }
 
-test "succint bit array: rank0 out of bounds" {
+test "succinct bit array: rank0 out of bounds" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         var array = try builder.build();
         defer array.deinit();
@@ -316,14 +323,14 @@ test "succint bit array: rank0 out of bounds" {
     }
 }
 
-test "succint bit array: simple rank1" {
+test "succinct bit array: simple rank1" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
-        try builder.push(1);
-        try builder.push(0);
-        try builder.push(1);
-        try builder.push(1);
+        try builder.append(1);
+        try builder.append(0);
+        try builder.append(1);
+        try builder.append(1);
         var array = try builder.build();
         defer array.deinit();
         try std.testing.expectEqual(1, array.rank1(0));
@@ -333,16 +340,16 @@ test "succint bit array: simple rank1" {
     }
 }
 
-test "succint bit array: long rank1" {
+test "succinct bit array: long rank1" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
 
         for (0..1024) |_| {
-            try builder.push(1);
-            try builder.push(1);
-            try builder.push(0);
-            try builder.push(0);
+            try builder.append(1);
+            try builder.append(1);
+            try builder.append(0);
+            try builder.append(0);
         }
 
         var array = try builder.build();
@@ -357,9 +364,9 @@ test "succint bit array: long rank1" {
     }
 }
 
-test "succint bit array: rank1 out of bounds" {
+test "succinct bit array: rank1 out of bounds" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         var array = try builder.build();
         defer array.deinit();
@@ -367,14 +374,14 @@ test "succint bit array: rank1 out of bounds" {
     }
 }
 
-test "succint bit array: simple select1" {
+test "succinct bit array: simple select1" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
-        try builder.push(1);
-        try builder.push(0);
-        try builder.push(1);
-        try builder.push(1);
+        try builder.append(1);
+        try builder.append(0);
+        try builder.append(1);
+        try builder.append(1);
         var array = try builder.build();
         defer array.deinit();
         try std.testing.expectEqual(0, array.select1(1));
@@ -383,17 +390,17 @@ test "succint bit array: simple select1" {
     }
 }
 
-test "succint bit array: long select1" {
+test "succinct bit array: long select1" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         for (0..1024) |_| {
-            try builder.push(1);
-            try builder.push(1);
-            try builder.push(0);
-            try builder.push(0);
+            try builder.append(1);
+            try builder.append(1);
+            try builder.append(0);
+            try builder.append(0);
         }
-        try builder.push(1);
+        try builder.append(1);
         var array = try builder.build();
         defer array.deinit();
 
@@ -404,9 +411,9 @@ test "succint bit array: long select1" {
     }
 }
 
-test "succint bit array: select1 not found" {
+test "succinct bit array: select1 not found" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         var array = try builder.build();
         defer array.deinit();
@@ -414,9 +421,9 @@ test "succint bit array: select1 not found" {
     }
 }
 
-test "succint bit array: select1 zero" {
+test "succinct bit array: select1 zero" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         var array = try builder.build();
         defer array.deinit();
@@ -424,7 +431,7 @@ test "succint bit array: select1 zero" {
     }
 }
 
-test "succint bit array builder: index" {
+test "succinct bit array builder: index" {
     const word_size_in_bits = @bitSizeOf(usize);
 
     inline for (test_chunk_sizes) |chunk_size| {
@@ -434,10 +441,10 @@ test "succint bit array builder: index" {
             .{ .n = word_size_in_bits, .e = &.{0} },
             .{ .n = word_size_in_bits + 1, .e = &.{ 0, word_size_in_bits } },
         }) |e| {
-            var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+            var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
             defer builder.deinit();
             for (0..e.n) |_| {
-                try builder.push(1);
+                try builder.append(1);
             }
 
             var array = try builder.build();
@@ -448,7 +455,7 @@ test "succint bit array builder: index" {
     }
 }
 
-test "succint bit array: print format" {
+test "succinct bit array: print format" {
     inline for (test_chunk_sizes) |chunk_size| {
         inline for ([_][]const u8{
             "111100101010100111",
@@ -460,9 +467,9 @@ test "succint bit array: print format" {
             "0",
             "",
         }) |in| {
-            var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+            var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
             for (in) |c| {
-                try builder.push(@truncate(c - '0'));
+                try builder.append(@truncate(c - '0'));
             }
             var array = try builder.build();
             defer array.deinit();
@@ -473,15 +480,15 @@ test "succint bit array: print format" {
     }
 }
 
-test "succint bit array: simple select0" {
+test "succinct bit array: simple select0" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
-        try builder.push(1);
-        try builder.push(0);
-        try builder.push(1);
-        try builder.push(1);
-        try builder.push(0);
+        try builder.append(1);
+        try builder.append(0);
+        try builder.append(1);
+        try builder.append(1);
+        try builder.append(0);
         var array = try builder.build();
         defer array.deinit();
         try std.testing.expectEqual(1, array.select0(1));
@@ -489,15 +496,15 @@ test "succint bit array: simple select0" {
     }
 }
 
-test "succint bit array: long select0" {
+test "succinct bit array: long select0" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         for (0..1024) |_| {
-            try builder.push(1);
-            try builder.push(1);
-            try builder.push(0);
-            try builder.push(0);
+            try builder.append(1);
+            try builder.append(1);
+            try builder.append(0);
+            try builder.append(0);
         }
         var array = try builder.build();
         defer array.deinit();
@@ -509,20 +516,20 @@ test "succint bit array: long select0" {
     }
 }
 
-test "succint bit array: select0 not found" {
+test "succinct bit array: select0 not found" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
-        try builder.push(1);
+        try builder.append(1);
         var array = try builder.build();
         defer array.deinit();
         try std.testing.expectError(error.IthZeroNotFound, array.select0(1));
     }
 }
 
-test "succint bit array: select0 zero" {
+test "succinct bit array: select0 zero" {
     inline for (test_chunk_sizes) |chunk_size| {
-        var builder = SuccintBitArrayBuilder(chunk_size).init(std.testing.allocator);
+        var builder = SuccinctBitArrayBuilder(chunk_size).init(std.testing.allocator);
         defer builder.deinit();
         var array = try builder.build();
         defer array.deinit();
