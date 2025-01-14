@@ -1,0 +1,3 @@
+mecab-ipadic-*/
+*.tsv
+.venv
