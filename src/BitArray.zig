@@ -96,6 +96,7 @@ pub fn insertWithStateAssumeCapacity(buf: []u8, bit_len: *usize, b: u1, index: u
 }
 
 const testing = std.testing;
+
 test "append" {
     var stack = Self.init(testing.allocator);
     defer stack.deinit();

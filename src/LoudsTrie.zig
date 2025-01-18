@@ -304,6 +304,7 @@ fn createTestLoudsTrie(allocator: mem.Allocator) !LoudsTrie([]const u8) {
 }
 
 const testing = std.testing;
+
 test "louds trie serializer: serialize & deserialize" {
     const allocator = testing.allocator;
     var buffer = std.ArrayList(u8).init(allocator);
