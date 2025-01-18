@@ -1,5 +1,4 @@
 const std = @import("std");
-const testing = std.testing;
 const mem = std.mem;
 const unicode = std.unicode;
 
@@ -152,6 +151,8 @@ pub const Utf8ShrinkingIterator = struct {
         return candidate;
     }
 };
+
+const testing = std.testing;
 
 test "utf8: bidirectional - kanji iteration" {
     const s = Utf8BidirectionalView.initUnchecked("東京市");

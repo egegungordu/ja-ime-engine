@@ -1,7 +1,6 @@
 const std = @import("std");
 const mem = std.mem;
 const unicode = std.unicode;
-const testing = std.testing;
 const utf8 = @import("utf8.zig");
 const Utf8BidirectionalView = utf8.Utf8BidirectionalView;
 const Utf8BidirectionalIterator = utf8.Utf8BidirectionalIterator;
@@ -241,9 +240,11 @@ fn iterateBack(it: *Utf8BidirectionalIterator, n: usize) void {
     }
 }
 
+const testing = std.testing;
+
 // Owned buffer tests
 test "utf8 input: owned - basic validation" {
-    var utf8_input = Utf8Input(.owned).init(std.testing.allocator);
+    var utf8_input = Utf8Input(.owned).init(testing.allocator);
     defer utf8_input.deinit();
 
     try utf8_input.insert("a");
@@ -253,7 +254,7 @@ test "utf8 input: owned - basic validation" {
 }
 
 test "utf8 input: owned - cursor movement" {
-    var utf8_input = Utf8Input(.owned).init(std.testing.allocator);
+    var utf8_input = Utf8Input(.owned).init(testing.allocator);
     defer utf8_input.deinit();
 
     try ins(.owned, &utf8_input, "こんにちは");
@@ -267,7 +268,7 @@ test "utf8 input: owned - cursor movement" {
 }
 
 test "utf8 input: owned - peek operations" {
-    var utf8_input = Utf8Input(.owned).init(std.testing.allocator);
+    var utf8_input = Utf8Input(.owned).init(testing.allocator);
     defer utf8_input.deinit();
 
     try ins(.owned, &utf8_input, "こんにちは");
@@ -284,7 +285,7 @@ test "utf8 input: owned - peek operations" {
 }
 
 test "utf8 input: owned - delete operations" {
-    var utf8_input = Utf8Input(.owned).init(std.testing.allocator);
+    var utf8_input = Utf8Input(.owned).init(testing.allocator);
     defer utf8_input.deinit();
 
     try ins(.owned, &utf8_input, "こんにちは");
