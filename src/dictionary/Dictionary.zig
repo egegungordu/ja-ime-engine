@@ -6,7 +6,7 @@ pub const Dictionary = struct {
     allocator: mem.Allocator,
 
     pub fn init(allocator: mem.Allocator) !Dictionary {
-        const dict = @embedFile("dictionary/combined_dictionary.tsv");
+        const dict = @embedFile("combined_dictionary.tsv");
         var lines = std.mem.splitScalar(u8, dict, '\n');
         var entries = std.ArrayList([]const u8).init(allocator);
 
