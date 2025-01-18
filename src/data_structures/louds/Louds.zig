@@ -1,8 +1,8 @@
 const std = @import("std");
 const mem = std.mem;
 
-const SuccinctBitArray = @import("SuccinctBitArray.zig").SuccinctBitArray;
-const SuccinctBitArrayBuilder = @import("SuccinctBitArray.zig").SuccinctBitArrayBuilder;
+const SuccinctBitArray = @import("../bit/SuccinctBitArray.zig").SuccinctBitArray;
+const SuccinctBitArrayBuilder = @import("../bit/SuccinctBitArray.zig").SuccinctBitArrayBuilder;
 
 pub fn Louds(comptime chunk_size: usize) type {
     return struct {

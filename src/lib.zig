@@ -2,7 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 const unicode = std.unicode;
 
-pub const Ime = @import("Ime.zig").Ime;
+pub const Ime = @import("core/Ime.zig").Ime;
 
 /// Transliterates a string from romaji to hiragana/full-width character.
 /// Uses the provided buffer to do the conversion.

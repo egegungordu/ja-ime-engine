@@ -2,8 +2,8 @@ const std = @import("std");
 const mem = std.mem;
 const unicode = std.unicode;
 const testing = @import("std").testing;
-const utf8_input = @import("Utf8Input.zig");
-const utf8 = @import("utf8.zig");
+const utf8_input = @import("../unicode/Utf8Input.zig");
+const utf8 = @import("../unicode/utf8.zig");
 const trans = @import("transliteration.zig");
 
 pub fn Ime(comptime tag: utf8_input.StorageTag) type {
@@ -141,40 +141,6 @@ fn getFullWidthMatch(s: []const u8) ?[]const u8 {
     return trans.full_width_map.get(s);
 }
 
-const n_fallthrough_cases = std.StaticStringMap(void).initComptime(.{
-    // vowels
-    .{"ｎａ"}, .{"ｎｉ"}, .{"ｎｕ"}, .{"ｎｅ"}, .{"ｎｏ"}, .{"ｎｎ"},
-});
-
-fn isNFallthroughCase(s: []const u8) bool {
-    return n_fallthrough_cases.get(s) != null;
-}
-
-fn isNYCase(s: []const u8) bool {
-    return std.mem.eql(u8, s, "ｎｙ");
-}
-
-/// Returns true if the first codepoint in the iterator is the same as the slice.
-fn firstCodepointEqual(it: *unicode.Utf8Iterator, slice: []const u8) !bool {
-    const first = it.peek(1);
-    if (first.len == 0) return error.InvalidInput;
-    return std.mem.eql(u8, first, slice);
-}
-
-// Utility tests
-test "ime: utils - first codepoint comparison" {
-    var it = unicode.Utf8Iterator{ .bytes = "abc", .i = 0 };
-    try testing.expect(try firstCodepointEqual(&it, "a"));
-    try testing.expect(!try firstCodepointEqual(&it, "b"));
-
-    var it2 = unicode.Utf8Iterator{ .bytes = "あいう", .i = 0 };
-    try testing.expect(try firstCodepointEqual(&it2, "あ"));
-    try testing.expect(!try firstCodepointEqual(&it2, "い"));
-
-    var it3 = unicode.Utf8Iterator{ .bytes = "", .i = 0 };
-    try testing.expectError(error.InvalidInput, firstCodepointEqual(&it3, "a"));
-}
-
 // Owned buffer tests
 test "ime: owned - cursor movement" {
     var ime = Ime(.owned).init(std.testing.allocator);
@@ -233,15 +199,15 @@ test "ime: owned - deletion" {
 }
 
 test "ime: owned - transliteration random" {
-    try testFromFile(.owned, "./test-data/random-transliterations.txt");
+    try testFromFile(.owned, "../test_data/random-transliterations.txt");
 }
 
 test "ime: owned - transliteration kana" {
-    try testFromFile(.owned, "./test-data/kana-transliterations.txt");
+    try testFromFile(.owned, "../test_data/kana-transliterations.txt");
 }
 
 test "ime: owned - transliteration full width" {
-    try testFromFile(.owned, "./test-data/full-width-transliterations.txt");
+    try testFromFile(.owned, "../test_data/full-width-transliterations.txt");
 }
 
 test "ime: owned - insert result basic" {
@@ -387,15 +353,15 @@ test "ime: borrowed - deletion" {
 }
 
 test "ime: borrowed - transliteration random" {
-    try testFromFile(.borrowed, "./test-data/random-transliterations.txt");
+    try testFromFile(.borrowed, "../test_data/random-transliterations.txt");
 }
 
 test "ime: borrowed - transliteration kana" {
-    try testFromFile(.borrowed, "./test-data/kana-transliterations.txt");
+    try testFromFile(.borrowed, "../test_data/kana-transliterations.txt");
 }
 
 test "ime: borrowed - transliteration full width" {
-    try testFromFile(.borrowed, "./test-data/full-width-transliterations.txt");
+    try testFromFile(.borrowed, "../test_data/full-width-transliterations.txt");
 }
 
 test "ime: borrowed - buffer overflow" {

@@ -1,12 +1,11 @@
 const std = @import("std");
 const mem = std.mem;
 
-const SuccinctBitArray = @import("SuccinctBitArray.zig").SuccinctBitArray;
-const SuccinctBitArrayBuilder = @import("SuccinctBitArray.zig").SuccinctBitArrayBuilder;
+const SuccinctBitArray = @import("../bit/SuccinctBitArray.zig").SuccinctBitArray;
+const SuccinctBitArrayBuilder = @import("../bit/SuccinctBitArray.zig").SuccinctBitArrayBuilder;
 const Trie = @import("Trie.zig").Trie;
 const Louds = @import("Louds.zig").Louds;
-const Dictionary = @import("Dictionary.zig").Dictionary;
-const BitArray = @import("BitArray.zig");
+const BitArray = @import("../bit/BitArray.zig");
 
 // TODO: the deserializer will allocate new strings, we can also use the slices from the reader
 // assuming their lifetime is longer, which will be true for @embedFile
