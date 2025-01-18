@@ -179,7 +179,7 @@ for (const char of text) {
 To run the test suite:
 
 ```bash
-zig build test --summary new
+zig build test --summary all
 ```
 
 ## Features

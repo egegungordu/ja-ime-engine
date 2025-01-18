@@ -54,6 +54,9 @@ fn buildTests(b: *std.Build, target: std.Build.ResolvedTarget, optimize: std.bui
 
     const run_unit_tests = b.addRunArtifact(unit_tests);
 
+    // disable caching on tests so they run every time
+    run_unit_tests.has_side_effects = true;
+
     const test_step = b.step("test", "Run unit tests");
     test_step.dependOn(&run_unit_tests.step);
 }
