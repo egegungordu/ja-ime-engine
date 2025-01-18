@@ -6,8 +6,13 @@ const SuccinctBitArrayBuilder = @import("SuccinctBitArray.zig").SuccinctBitArray
 
 pub fn Louds(comptime chunk_size: usize) type {
     return struct {
-        const Node = struct {
-            id: usize,
+        pub const Node = struct {
+            /// The index of the edge to the child. If there is no child (the
+            /// value at index is 0), it is null. Root is edge index 0
+            /// (if it has a child).
+            edge_index: ?usize,
+            /// The index of the bit in the bit array. Root is index 2
+            /// (because of the super root).
             index: usize,
         };
 
@@ -26,53 +31,60 @@ pub fn Louds(comptime chunk_size: usize) type {
         pub fn getRoot(self: Louds(chunk_size)) Node {
             _ = self;
             return Node{
-                .id = 0,
+                .edge_index = 0,
                 .index = 2,
             };
         }
 
-        pub fn isLeaf(self: Louds(chunk_size), node: Node) !bool {
-            return try self.sba.getBit(node.index) == 0;
+        pub fn isLeaf(self: Louds(chunk_size), node: Node) bool {
+            _ = self;
+            // or check (bit at the current index) == 0
+            return node.edge_index == null;
         }
 
         // first-child(m) <- select0(rank1(m)) + 1
         pub fn firstChild(self: Louds(chunk_size), node: *Node) !void {
             const rank = try self.sba.rank1(node.index);
             node.index = try self.sba.select0(rank) + 1;
-            node.id = rank - 1;
+            node.edge_index = if (try self.sba.getBit(node.index) == 0) null else try self.sba.rank1(node.index) - 2;
         }
 
         // next-sibling(m) <- m + 1
         pub fn nextSibling(self: Louds(chunk_size), node: *Node) void {
             _ = self;
             node.index += 1;
-            node.id += 1;
+            if (node.edge_index) |_| node.edge_index.? += 1;
         }
 
         // parent(m) <- select1(rank0(m - 1))
         pub fn parent(self: Louds(chunk_size), node: *Node) !void {
             node.index = try self.sba.select1(try self.sba.rank0(node.index - 1));
+            // TODO: dont need this i think?
             // Search left until we find a 0 bit to get the parent's ID
-            var pos = node.index - 1;
-            while (pos > 0) : (pos -= 1) {
-                const bit = @as(u1, @truncate(self.sba.bit_array.bytes.items[pos / 8] >> @truncate(pos % 8)));
-                if (bit == 0) {
-                    node.id = try self.sba.rank0(pos) - 1;
-                    return;
-                }
-            }
-            node.id = 0; // Root node case
+            // var pos = node.index - 1;
+            // while (pos > 0) : (pos -= 1) {
+            //     const bit = @as(u1, @truncate(self.sba.bit_array.bytes.items[pos / 8] >> @truncate(pos % 8)));
+            //     if (bit == 0) {
+            //         node.id = try self.sba.rank0(pos) - 1;
+            //         return;
+            //     }
+            // }
+            node.edge_index = try self.sba.rank1(node.index) - 2;
         }
 
-        pub fn getNodeById(self: Louds(chunk_size), id: usize) !Node {
+        pub fn getNodeByEdgeIndex(self: Louds(chunk_size), edge_index: usize) !Node {
             return Node{
-                .id = id,
-                .index = try self.sba.select0(id + 1) + 1,
+                .edge_index = edge_index,
+                .index = try self.sba.select1(edge_index + 2),
             };
         }
 
         pub fn hasNextSibling(self: Louds(chunk_size), node: Node) !bool {
             return try self.sba.getBit(node.index + 1) == 1;
+        }
+
+        pub fn getNodeIndex(self: Louds(chunk_size), node: Node) !usize {
+            return try self.sba.rank0(node.index - 1) - 1;
         }
     };
 }
@@ -81,7 +93,7 @@ pub fn Louds(comptime chunk_size: usize) type {
 //            ●10       <- super root
 //            |
 //           (a)
-//            ●1110     <- root
+//            ●1110     <- root { edge_index: 0, node_index: 0, index: 2 }
 //           /|\
 //          / | \
 //         /  |  \
@@ -108,45 +120,26 @@ fn createTestLouds(comptime chunk_size: usize, allocator: mem.Allocator) !Louds(
     return Louds(chunk_size).init(try sbab.build());
 }
 
-test "what the fuck doude?" {
-    var sbab = SuccinctBitArrayBuilder(16).init(std.testing.allocator);
-    const bits: u64 = 0b10101010111111110010011100001000000;
-    var shift: u6 = @truncate(64 - @clz(bits) - 1);
-    while (true) {
-        try sbab.append(@truncate((bits >> shift) & 1));
-        if (shift == 0) break;
-        shift -= 1;
-    }
-    var louds = Louds(16).init(try sbab.build());
-    defer louds.deinit();
-
-    std.debug.print("sba: {any}\n", .{louds.sba});
-
-    var node = try louds.getNodeById(3);
-    std.debug.print("node_id: {d}, node_index: {d}\n", .{ node.id, node.index });
-    try louds.firstChild(&node);
-    std.debug.print("node_id: {d}, node_index: {d}\n", .{ node.id, node.index });
-}
-
+const testing = std.testing;
 test "louds: first child" {
-    const allocator = std.testing.allocator;
+    const allocator = testing.allocator;
     var louds = try createTestLouds(16, allocator);
     defer louds.deinit();
 
     var node = louds.getRoot();
     try louds.firstChild(&node);
-    try std.testing.expectEqual(1, node.id);
-    try std.testing.expectEqual(6, node.index);
+    try testing.expectEqual(3, node.edge_index);
+    try testing.expectEqual(6, node.index);
     try louds.firstChild(&node);
-    try std.testing.expectEqual(4, node.id);
-    try std.testing.expectEqual(12, node.index);
+    try testing.expectEqual(6, node.edge_index);
+    try testing.expectEqual(12, node.index);
     try louds.firstChild(&node);
-    try std.testing.expectEqual(7, node.id);
-    try std.testing.expectEqual(17, node.index);
+    try testing.expectEqual(null, node.edge_index);
+    try testing.expectEqual(17, node.index);
 }
 
 test "louds: parent" {
-    const allocator = std.testing.allocator;
+    const allocator = testing.allocator;
     var louds = try createTestLouds(16, allocator);
     defer louds.deinit();
 
@@ -155,35 +148,56 @@ test "louds: parent" {
     try louds.firstChild(&node);
     try louds.firstChild(&node);
     try louds.parent(&node);
-    try std.testing.expectEqual(4, node.id);
-    try std.testing.expectEqual(12, node.index);
+    try testing.expectEqual(6, node.edge_index);
+    try testing.expectEqual(12, node.index);
     try louds.parent(&node);
-    try std.testing.expectEqual(1, node.id);
-    try std.testing.expectEqual(6, node.index);
+    try testing.expectEqual(3, node.edge_index);
+    try testing.expectEqual(6, node.index);
     try louds.parent(&node);
-    try std.testing.expectEqual(0, node.id);
-    try std.testing.expectEqual(2, node.index);
+    try testing.expectEqual(0, node.edge_index);
+    try testing.expectEqual(2, node.index);
 }
 
 test "louds: next sibling" {
-    const allocator = std.testing.allocator;
+    const allocator = testing.allocator;
     var louds = try createTestLouds(16, allocator);
     defer louds.deinit();
 
     var node = louds.getRoot();
-    try std.testing.expectEqual(0, node.id);
-    try std.testing.expectEqual(2, node.index);
+    try testing.expectEqual(0, node.edge_index);
+    try testing.expectEqual(2, node.index);
     try louds.firstChild(&node);
-    try std.testing.expectEqual(1, node.id);
-    try std.testing.expectEqual(6, node.index);
+    try testing.expectEqual(3, node.edge_index);
+    try testing.expectEqual(6, node.index);
     try louds.parent(&node);
     louds.nextSibling(&node);
     try louds.firstChild(&node);
-    try std.testing.expectEqual(2, node.id);
-    try std.testing.expectEqual(9, node.index);
+    try testing.expectEqual(null, node.edge_index);
+    try testing.expectEqual(9, node.index);
     try louds.parent(&node);
     louds.nextSibling(&node);
     try louds.firstChild(&node);
-    try std.testing.expectEqual(3, node.id);
-    try std.testing.expectEqual(10, node.index);
+    try testing.expectEqual(5, node.edge_index);
+    try testing.expectEqual(10, node.index);
+}
+
+test "louds: get node index" {
+    const allocator = testing.allocator;
+    var louds = try createTestLouds(16, allocator);
+    defer louds.deinit();
+
+    var node = louds.getRoot();
+    try testing.expectEqual(0, try louds.getNodeIndex(node));
+    try louds.firstChild(&node);
+    try testing.expectEqual(1, try louds.getNodeIndex(node));
+    try louds.parent(&node);
+    louds.nextSibling(&node);
+    try louds.firstChild(&node);
+    try testing.expectEqual(2, try louds.getNodeIndex(node));
+    try louds.parent(&node);
+    louds.nextSibling(&node);
+    try louds.firstChild(&node);
+    try testing.expectEqual(3, try louds.getNodeIndex(node));
+    try louds.firstChild(&node);
+    try testing.expectEqual(6, try louds.getNodeIndex(node));
 }
