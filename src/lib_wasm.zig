@@ -2,7 +2,7 @@ const std = @import("std");
 
 extern "debug" fn consoleLog(arg: u32) void;
 
-const Ime = @import("Ime.zig").Ime;
+const Ime = @import("Ime").Ime;
 
 var ime: Ime(.borrowed) = undefined;
 

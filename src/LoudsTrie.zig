@@ -1,12 +1,13 @@
 const std = @import("std");
 const mem = std.mem;
 
-const SuccinctBitArray = @import("../bit/SuccinctBitArray.zig").SuccinctBitArray;
-const SuccinctBitArrayBuilder = @import("../bit/SuccinctBitArray.zig").SuccinctBitArrayBuilder;
+const SuccinctBitArray = @import("SuccinctBitArray.zig").SuccinctBitArray;
+const SuccinctBitArrayBuilder = @import("SuccinctBitArray.zig").SuccinctBitArrayBuilder;
 const Trie = @import("Trie.zig").Trie;
 const Louds = @import("Louds.zig").Louds;
-const BitArray = @import("../bit/BitArray.zig");
+const BitArray = @import("BitArray.zig");
 
+// TODO: take a look at decompressor/compressor https://codeberg.org/atman/zg/src/branch/master/src/CaseData.zig
 // TODO: the deserializer will allocate new strings, we can also use the slices from the reader
 // assuming their lifetime is longer, which will be true for @embedFile
 pub fn LoudsTrieSerializer(comptime V: type) type {
@@ -96,11 +97,9 @@ pub fn LoudsTrieSerializer(comptime V: type) type {
                 // Read string length
                 const str_len = try reader.readInt(usize, .little);
 
-                // Allocate and read string
-                const str = try allocator.alloc(u8, str_len);
-                errdefer allocator.free(str);
-
-                try reader.readNoEof(str);
+                // Read string
+                const str = reader.context.buffer[reader.context.pos .. reader.context.pos + str_len];
+                try reader.skipBytes(str_len, .{});
 
                 try list.append(str);
             }

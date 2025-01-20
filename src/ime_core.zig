@@ -1,30 +1,43 @@
 const std = @import("std");
 const mem = std.mem;
 const unicode = std.unicode;
-const testing = @import("std").testing;
-const utf8_input = @import("../unicode/Utf8Input.zig");
-const utf8 = @import("../unicode/utf8.zig");
+const utf8_input = @import("Utf8Input.zig");
+const utf8 = @import("utf8.zig");
 const trans = @import("transliteration.zig");
+const LoudsTrie = @import("LoudsTrie.zig").LoudsTrie([]const u8);
 
-pub fn Ime(comptime tag: utf8_input.StorageTag) type {
+pub fn Ime(
+    /// Dictionary loader is a type that implements loadTrie and freeTrie functions.
+    /// loadTrie takes an allocator and returns a LoudsTrie that contains dictionary entries.
+    /// freeTrie takes an allocator and a LoudsTrie pointer and frees the dictionary.
+    /// If dict_loader is null, no dictionary will be loaded and dictionary lookups will be disabled.
+    dict_loader: anytype,
+) type {
     return struct {
-        input: utf8_input.Utf8Input(tag),
+        allocator: mem.Allocator,
+        input: utf8_input.Utf8Input,
+        dict: ?LoudsTrie,
 
         const Self = @This();
 
-        pub fn init(
-            arg: switch (tag) {
-                .owned => mem.Allocator,
-                .borrowed => []u8,
-            },
-        ) Self {
+        pub fn init(allocator: mem.Allocator) !Self {
+            const dict: ?LoudsTrie = blk: {
+                if (@TypeOf(dict_loader) != type) break :blk null;
+                break :blk try dict_loader.loadTrie(allocator);
+            };
+
             return Self{
-                .input = utf8_input.Utf8Input(tag).init(arg),
+                .allocator = allocator,
+                .input = utf8_input.Utf8Input.init(allocator),
+                .dict = dict,
             };
         }
 
         pub fn deinit(self: *Self) void {
             self.input.deinit();
+            if (self.dict != null and @TypeOf(dict_loader) == type) {
+                dict_loader.freeTrie(&self.dict.?);
+            }
         }
 
         pub const MatchModification = struct {
@@ -141,16 +154,19 @@ fn getFullWidthMatch(s: []const u8) ?[]const u8 {
     return trans.full_width_map.get(s);
 }
 
-// Owned buffer tests
-test "ime: owned - cursor movement" {
-    var ime = Ime(.owned).init(std.testing.allocator);
+const testing = std.testing;
+
+const TestingDictionaryLoader = @import("DictionaryLoader.zig").TestingDictionaryLoader;
+
+test "ime: cursor movement" {
+    var ime = try Ime(null).init(testing.allocator);
     defer ime.deinit();
 
     _ = try ime.insert("k");
     _ = try ime.insert("c");
     ime.moveCursorBack(1);
     _ = try ime.insert("i");
-    try std.testing.expectEqualStrings("きｃ", ime.input.buf.items());
+    try testing.expectEqualStrings("きｃ", ime.input.buf.items);
 
     ime.clear();
 
@@ -159,7 +175,7 @@ test "ime: owned - cursor movement" {
     _ = try ime.insert("c");
     ime.moveCursorBack(1);
     _ = try ime.insert("i");
-    try std.testing.expectEqualStrings("きぃｃ", ime.input.buf.items());
+    try testing.expectEqualStrings("きぃｃ", ime.input.buf.items);
 
     // Test moveCursorForward
     ime.clear();
@@ -168,20 +184,20 @@ test "ime: owned - cursor movement" {
     ime.moveCursorBack(2);
     ime.moveCursorForward(1);
     _ = try ime.insert("i");
-    try std.testing.expectEqualStrings("きｙ", ime.input.buf.items());
+    try testing.expectEqualStrings("きｙ", ime.input.buf.items);
 }
 
-test "ime: owned - deletion" {
-    var ime = Ime(.owned).init(std.testing.allocator);
+test "ime: deletion" {
+    var ime = try Ime(null).init(std.testing.allocator);
     defer ime.deinit();
 
     // Test deleteBack
     _ = try ime.insert("c");
     _ = try ime.insert("k");
     _ = try ime.insert("a");
-    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
+    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items);
     ime.deleteBack();
-    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
+    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items);
 
     ime.clear();
 
@@ -189,29 +205,29 @@ test "ime: owned - deletion" {
     _ = try ime.insert("c");
     _ = try ime.insert("k");
     _ = try ime.insert("a");
-    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
+    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items);
     ime.moveCursorBack(1);
     ime.deleteForward();
-    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
+    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items);
     ime.moveCursorBack(1);
     ime.deleteForward();
-    try std.testing.expectEqualStrings("", ime.input.buf.items());
+    try std.testing.expectEqualStrings("", ime.input.buf.items);
 }
 
-test "ime: owned - transliteration random" {
-    try testFromFile(.owned, "../test_data/random-transliterations.txt");
+test "ime: transliteration random" {
+    try testFromFile("tests/data/random-transliterations.txt");
 }
 
-test "ime: owned - transliteration kana" {
-    try testFromFile(.owned, "../test_data/kana-transliterations.txt");
+test "ime: transliteration kana" {
+    try testFromFile("tests/data/kana-transliterations.txt");
 }
 
-test "ime: owned - transliteration full width" {
-    try testFromFile(.owned, "../test_data/full-width-transliterations.txt");
+test "ime: transliteration full width" {
+    try testFromFile("tests/data/full-width-transliterations.txt");
 }
 
-test "ime: owned - insert result basic" {
-    var ime = Ime(.owned).init(std.testing.allocator);
+test "ime: insert result basic" {
+    var ime = try Ime(null).init(std.testing.allocator);
     defer ime.deinit();
 
     // Test basic transliteration (ka -> か)
@@ -230,8 +246,8 @@ test "ime: owned - insert result basic" {
     }
 }
 
-test "ime: owned - insert result complex" {
-    var ime = Ime(.owned).init(std.testing.allocator);
+test "ime: insert result complex" {
+    var ime = try Ime(null).init(std.testing.allocator);
     defer ime.deinit();
 
     // Test double consonant (tt -> っｔ)
@@ -291,117 +307,12 @@ test "ime: owned - insert result complex" {
     }
 }
 
-// Borrowed buffer tests
-test "ime: borrowed - cursor movement" {
-    var buf: [100]u8 = undefined;
-    var ime = Ime(.borrowed).init(&buf);
-    defer ime.deinit();
-
-    _ = try ime.insert("k");
-    _ = try ime.insert("c");
-    ime.moveCursorBack(1);
-    _ = try ime.insert("i");
-    try std.testing.expectEqualStrings("きｃ", ime.input.buf.items());
-
-    ime.clear();
-
-    _ = try ime.insert("k");
-    _ = try ime.insert("y");
-    _ = try ime.insert("c");
-    ime.moveCursorBack(1);
-    _ = try ime.insert("i");
-    try std.testing.expectEqualStrings("きぃｃ", ime.input.buf.items());
-
-    // Test moveCursorForward
-    ime.clear();
-    _ = try ime.insert("k");
-    _ = try ime.insert("y");
-    ime.moveCursorBack(2);
-    ime.moveCursorForward(1);
-    _ = try ime.insert("i");
-    try std.testing.expectEqualStrings("きｙ", ime.input.buf.items());
-}
-
-test "ime: borrowed - deletion" {
-    var buf: [100]u8 = undefined;
-    var ime = Ime(.borrowed).init(&buf);
-    defer ime.deinit();
-
-    // Test deleteBack
-    _ = try ime.insert("c");
-    _ = try ime.insert("k");
-    _ = try ime.insert("a");
-    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
-    ime.deleteBack();
-    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
-    ime.deleteBack();
-    try std.testing.expectEqualStrings("", ime.input.buf.items());
-
-    ime.clear();
-
-    // Test deleteForward
-    _ = try ime.insert("c");
-    _ = try ime.insert("k");
-    _ = try ime.insert("a");
-    try std.testing.expectEqualStrings("ｃか", ime.input.buf.items());
-    ime.moveCursorBack(1);
-    ime.deleteForward();
-    try std.testing.expectEqualStrings("ｃ", ime.input.buf.items());
-    ime.moveCursorBack(1);
-    ime.deleteForward();
-    try std.testing.expectEqualStrings("", ime.input.buf.items());
-}
-
-test "ime: borrowed - transliteration random" {
-    try testFromFile(.borrowed, "../test_data/random-transliterations.txt");
-}
-
-test "ime: borrowed - transliteration kana" {
-    try testFromFile(.borrowed, "../test_data/kana-transliterations.txt");
-}
-
-test "ime: borrowed - transliteration full width" {
-    try testFromFile(.borrowed, "../test_data/full-width-transliterations.txt");
-}
-
-test "ime: borrowed - buffer overflow" {
-    // Buffer only big enough for 3 characters
-    var buf: [3]u8 = undefined;
-    var ime = Ime(.borrowed).init(&buf);
-    defer ime.deinit();
-
-    // Single character works
-    _ = try ime.insert("a");
-    try testing.expectEqualStrings("あ", ime.input.buf.items());
-
-    // Second character fails because 'あ' takes 3 bytes
-    try testing.expectError(error.OutOfMemory, ime.insert("a"));
-}
-
-test "ime: borrowed - insert result" {
-    var buf: [100]u8 = undefined;
-    var ime = Ime(.borrowed).init(&buf);
-    defer ime.deinit();
-
-    // Test basic case
-    if (try ime.insert("a")) |modification| {
-        try std.testing.expectEqual(@as(usize, 0), modification.deleted_codepoints);
-        try std.testing.expectEqualStrings("あ", modification.inserted_text);
-    } else {
-        try std.testing.expect(false);
-    }
-}
-
-fn testFromFile(comptime tag: utf8_input.StorageTag, comptime path: []const u8) !void {
+fn testFromFile(comptime path: []const u8) !void {
     const file = @embedFile(path);
 
     var lines = std.mem.split(u8, file, "\n");
 
-    var buf: [1024]u8 = undefined;
-    var ime = switch (tag) {
-        .owned => Ime(.owned).init(std.testing.allocator),
-        .borrowed => Ime(.borrowed).init(&buf),
-    };
+    var ime = try Ime(null).init(std.testing.allocator);
     defer ime.deinit();
 
     while (lines.next()) |line| {
@@ -422,7 +333,7 @@ fn testFromFile(comptime tag: utf8_input.StorageTag, comptime path: []const u8) 
         }
 
         // Verify output
-        try std.testing.expectEqualStrings(hiragana, ime.input.buf.items());
+        try std.testing.expectEqualStrings(hiragana, ime.input.buf.items);
 
         ime.clear();
     }

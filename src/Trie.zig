@@ -40,6 +40,7 @@ pub fn Trie(comptime V: type) type {
             self.root.deinit();
         }
 
+        // TODO: make this faster
         pub fn insert(self: *Trie(V), key: []const u8, value: V) !void {
             var current_node = &self.root;
             var it = (try std.unicode.Utf8View.init(key)).iterator();
