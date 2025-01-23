@@ -234,6 +234,8 @@ pub fn LoudsTrie(comptime V: type) type {
             self.louds.deinit();
         }
 
+        /// Returns the values associated with an exact match of the given key, or null if not found.
+        /// The returned MatchResult contains the depth of the match and the values at that node.
         pub fn exactMatch(self: Self, key: []const u8) !?MatchResult {
             var key_it = (try std.unicode.Utf8View.init(key)).iterator();
             var current_node = self.louds.getRoot();
@@ -263,9 +265,6 @@ pub fn LoudsTrie(comptime V: type) type {
 
         /// Returns all values found at each prefix of the given key.
         /// For example, for key "hello", it will return values found at "h", "he", "hel", "hell", and "hello".
-        /// Returns an array of optional arrays of values, where each element corresponds to a prefix.
-        /// The array's length matches the number of characters in the input key.
-        /// If a prefix has no values, its corresponding element will be null.
         pub fn prefixMatch(self: Self, allocator: mem.Allocator, key: []const u8) !std.ArrayList(MatchResult) {
             var results = std.ArrayList(MatchResult).init(allocator);
             errdefer results.deinit();
@@ -425,6 +424,12 @@ test "louds trie: exact match" {
         },
         (try ltrie.exactMatch("のる")).?,
     );
+
+    // Test empty string
+    try testing.expectEqual(@as(?MatchResult, null), try ltrie.exactMatch(""));
+
+    // Test non-existent string
+    try testing.expectEqual(@as(?MatchResult, null), try ltrie.exactMatch("xyz"));
 }
 
 test "louds trie: prefix match" {
@@ -460,4 +465,14 @@ test "louds trie: prefix match" {
         },
         results.items,
     );
+
+    // Test empty string
+    var empty_results = try ltrie.prefixMatch(allocator, "");
+    defer empty_results.deinit();
+    try testing.expectEqual(@as(usize, 0), empty_results.items.len);
+
+    // Test non-existent string
+    var nonexistent_results = try ltrie.prefixMatch(allocator, "xyz");
+    defer nonexistent_results.deinit();
+    try testing.expectEqual(@as(usize, 0), nonexistent_results.items.len);
 }
