@@ -54,8 +54,9 @@ pub fn build(b: *std.Build) void {
     });
     ime_ipadic.addAnonymousImport("ipadic", .{ .root_source_file = run_dict_builder_out });
 
-    // const wasm_exe = buildWasmLib(b);
-    // wasm_exe.root_module.addImport("Ime", ime);
+    const wasm_exe = buildWasmLib(b);
+    _ = wasm_exe;
+    // wasm_exe.root_module.addImport("ime_core", ime_core);
 
     _ = buildTests(b, target, optimize);
     const test_ime_ipadic = buildImeIpadicTests(b, target, optimize);

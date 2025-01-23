@@ -4,7 +4,8 @@ const unicode = std.unicode;
 const utf8_input = @import("Utf8Input.zig");
 const utf8 = @import("utf8.zig");
 const trans = @import("transliteration.zig");
-const LoudsTrie = @import("LoudsTrie.zig").LoudsTrie([]const u8);
+const louds_trie = @import("LoudsTrie.zig");
+const LoudsTrie = louds_trie.LoudsTrie([]const u8);
 
 pub fn Ime(
     /// Dictionary loader is a type that implements loadTrie and freeTrie functions.
@@ -156,8 +157,6 @@ fn getFullWidthMatch(s: []const u8) ?[]const u8 {
 
 const testing = std.testing;
 
-const TestingDictionaryLoader = @import("DictionaryLoader.zig").TestingDictionaryLoader;
-
 test "ime: cursor movement" {
     var ime = try Ime(null).init(testing.allocator);
     defer ime.deinit();
@@ -304,6 +303,60 @@ test "ime: insert result complex" {
         try std.testing.expectEqualStrings("きょ", modification.inserted_text);
     } else {
         try std.testing.expect(false);
+    }
+}
+
+const LoudsTrieSerializer = louds_trie.LoudsTrieSerializer([]const u8);
+const LoudsTrieBuilder = louds_trie.LoudsTrieBuilder([]const u8);
+
+pub const TestingDictionaryLoader = struct {
+    pub fn loadTrie(allocator: mem.Allocator) !LoudsTrie {
+        var bldr = LoudsTrieBuilder.init(allocator);
+        defer bldr.deinit();
+
+        const entries = [_]struct { []const u8, []const u8 }{
+            .{ "ひらめく", "閃く" },
+            .{ "ひらく", "開く" },
+            .{ "ひらける", "開ける" },
+            .{ "たべる", "食べる" },
+            .{ "たべつづける", "食べ続ける" },
+            .{ "たべすぎる", "食べ過ぎる" },
+            .{ "こうがく", "工学" },
+            .{ "こうがく", "光学" },
+            .{ "こうがく", "高額" },
+        };
+
+        for (entries) |entry| {
+            try bldr.insert(entry[0], entry[1]);
+        }
+
+        return bldr.build();
+    }
+
+    pub fn freeTrie(ltrie: *LoudsTrie) void {
+        ltrie.deinit();
+    }
+};
+
+test "ime: exact match" {
+    var ime = try Ime(TestingDictionaryLoader).init(testing.allocator);
+    defer ime.deinit();
+
+    inline for ([_]struct { r: []const u8, w: []const []const u8 }{
+        .{
+            .r = "ひらめく",
+            .w = &.{"閃く"},
+        },
+        .{
+            .r = "こうがく",
+            .w = &.{ "工学", "光学", "高額" },
+        },
+    }) |pair| {
+        try testing.expectEqualSlices(
+            []const u8,
+            pair.w,
+            (try ime.dict.?.exactMatch(pair.r)).?,
+        );
     }
 }
 

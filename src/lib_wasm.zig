@@ -2,9 +2,9 @@ const std = @import("std");
 
 extern "debug" fn consoleLog(arg: u32) void;
 
-const Ime = @import("Ime").Ime;
+const Ime = @import("ime_core.zig").Ime;
 
-var ime: Ime(.borrowed) = undefined;
+var ime: Ime(null) = undefined;
 
 // Buffer for input text
 var input_buffer = std.mem.zeroes([64]u8);
@@ -14,10 +14,11 @@ export fn getInputBufferPointer() [*]u8 {
 
 // Buffer for the ime
 var ime_buffer = std.mem.zeroes([2048]u8);
-var last_insert_result: ?Ime(.borrowed).MatchModification = undefined;
+var fba = std.heap.FixedBufferAllocator.init(&ime_buffer);
+var last_insert_result: ?Ime(null).MatchModification = undefined;
 
 export fn init() void {
-    ime = Ime(.borrowed).init(&ime_buffer);
+    ime = Ime(null).init(fba.allocator()) catch return;
 }
 
 export fn insert(length: usize) void {

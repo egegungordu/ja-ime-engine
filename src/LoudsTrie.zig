@@ -220,6 +220,8 @@ pub fn LoudsTrie(comptime V: type) type {
     return struct {
         const Self = @This();
 
+        pub const MatchResult = struct { depth: usize, values: []const V };
+
         labels: std.ArrayList([]const u8),
         values: std.ArrayList(V),
         value_offsets: std.ArrayList(usize),
@@ -232,9 +234,10 @@ pub fn LoudsTrie(comptime V: type) type {
             self.louds.deinit();
         }
 
-        pub fn exactMatch(self: Self, key: []const u8) !?[]V {
+        pub fn exactMatch(self: Self, key: []const u8) !?MatchResult {
             var key_it = (try std.unicode.Utf8View.init(key)).iterator();
             var current_node = self.louds.getRoot();
+            var depth: usize = 0;
             while (key_it.nextCodepointSlice()) |char| {
                 while (!mem.eql(u8, self.labels.items[current_node.edge_index.?], char)) {
                     if (try self.louds.hasNextSibling(current_node)) {
@@ -244,11 +247,57 @@ pub fn LoudsTrie(comptime V: type) type {
                     }
                 }
                 try self.louds.firstChild(&current_node);
+                depth += 1;
                 if (self.louds.isLeaf(current_node)) {
-                    return self.getValues(current_node);
+                    if (try self.getValues(current_node)) |values| {
+                        return .{ .depth = depth, .values = values };
+                    }
+                    return null;
                 }
             }
-            return self.getValues(current_node);
+            if (try self.getValues(current_node)) |values| {
+                return .{ .depth = depth, .values = values };
+            }
+            return null;
+        }
+
+        /// Returns all values found at each prefix of the given key.
+        /// For example, for key "hello", it will return values found at "h", "he", "hel", "hell", and "hello".
+        /// Returns an array of optional arrays of values, where each element corresponds to a prefix.
+        /// The array's length matches the number of characters in the input key.
+        /// If a prefix has no values, its corresponding element will be null.
+        pub fn prefixMatch(self: Self, allocator: mem.Allocator, key: []const u8) !std.ArrayList(MatchResult) {
+            var results = std.ArrayList(MatchResult).init(allocator);
+            errdefer results.deinit();
+
+            var key_it = (try std.unicode.Utf8View.init(key)).iterator();
+            var current_node = self.louds.getRoot();
+            var depth: usize = 0;
+
+            while (key_it.nextCodepointSlice()) |char| {
+                while (!mem.eql(u8, self.labels.items[current_node.edge_index.?], char)) {
+                    if (try self.louds.hasNextSibling(current_node)) {
+                        self.louds.nextSibling(&current_node);
+                    } else {
+                        return results;
+                    }
+                }
+                try self.louds.firstChild(&current_node);
+                depth += 1;
+
+                if (try self.getValues(current_node)) |values| {
+                    try results.append(.{
+                        .depth = depth,
+                        .values = values,
+                    });
+                }
+
+                if (self.louds.isLeaf(current_node)) {
+                    return results;
+                }
+            }
+
+            return results;
         }
 
         /// Calculate the size of the trie in memory, in bytes
@@ -275,7 +324,7 @@ pub fn LoudsTrie(comptime V: type) type {
                 self.value_offsets.items.len * @sizeOf(usize);
         }
 
-        fn getValues(self: Self, node: Louds(32).Node) !?[]V {
+        fn getValues(self: Self, node: Louds(32).Node) !?[]const V {
             const node_index = try self.louds.getNodeIndex(node);
             if (node_index + 1 >= self.values.items.len) {}
             const start = self.value_offsets.items[node_index];
@@ -298,6 +347,11 @@ fn createTestLoudsTrie(allocator: mem.Allocator) !LoudsTrie([]const u8) {
     try bldr.insert("あいらく", "哀楽");
     try bldr.insert("のる", "乗る");
     try bldr.insert("のる", "載る");
+    try bldr.insert("こ", "子");
+    try bldr.insert("こ", "個");
+    try bldr.insert("こん", "根");
+    try bldr.insert("こんにち", "今日");
+    try bldr.insert("こんにちは", "こんにちは");
     return try bldr.build();
 }
 
@@ -319,16 +373,7 @@ test "louds trie serializer: serialize & deserialize" {
     // deserialize
     var stream = std.io.fixedBufferStream(buffer.items);
     var ltrie_deserialized = try Serializer.deserialize(allocator, stream.reader());
-    defer {
-        // free the strings
-        for (ltrie_deserialized.labels.items) |str| {
-            allocator.free(str);
-        }
-        for (ltrie_deserialized.values.items) |str| {
-            allocator.free(str);
-        }
-        ltrie_deserialized.deinit();
-    }
+    defer ltrie_deserialized.deinit();
 
     for (0..ltrie.labels.items.len) |i| {
         try testing.expectEqualStrings(ltrie.labels.items[i], ltrie_deserialized.labels.items[i]);
@@ -354,25 +399,65 @@ test "louds trie serializer: serialize & deserialize" {
 
 test "louds trie: exact match" {
     const allocator = testing.allocator;
-    var buffer = std.ArrayList(u8).init(allocator);
-    defer buffer.deinit();
+    const MatchResult = LoudsTrie([]const u8).MatchResult;
 
     var ltrie: LoudsTrie([]const u8) = try createTestLoudsTrie(allocator);
     defer ltrie.deinit();
 
-    try testing.expectEqualSlices(
-        []const u8,
-        &.{"喜怒"},
+    try testing.expectEqualDeep(
+        MatchResult{
+            .depth = 2,
+            .values = &.{"喜怒"},
+        },
         (try ltrie.exactMatch("きど")).?,
     );
-    try testing.expectEqualSlices(
-        []const u8,
-        &.{"哀楽"},
+    try testing.expectEqualDeep(
+        MatchResult{
+            .depth = 4,
+            .values = &.{"哀楽"},
+        },
         (try ltrie.exactMatch("あいらく")).?,
     );
-    try testing.expectEqualSlices(
-        []const u8,
-        &.{ "乗る", "載る" },
+    try testing.expectEqualDeep(
+        MatchResult{
+            .depth = 2,
+            .values = &.{ "乗る", "載る" },
+        },
         (try ltrie.exactMatch("のる")).?,
+    );
+}
+
+test "louds trie: prefix match" {
+    const allocator = testing.allocator;
+    const MatchResult = LoudsTrie([]const u8).MatchResult;
+
+    var ltrie = try createTestLoudsTrie(allocator);
+    defer ltrie.deinit();
+
+    var results = try ltrie.prefixMatch(allocator, "こんにちは");
+    defer results.deinit();
+
+    try testing.expectEqual(@as(usize, 4), results.items.len);
+
+    try testing.expectEqualDeep(
+        &[_]MatchResult{
+            .{
+                .depth = 1,
+                .values = &.{ "子", "個" },
+            },
+            .{
+                .depth = 2,
+                .values = &.{"根"},
+            },
+            .{
+                .depth = 4,
+                .values = &.{"今日"},
+            },
+            .{
+                .depth = 5,
+                .values = &.{"こんにちは"},
+            },
+        },
+        results.items,
     );
 }
