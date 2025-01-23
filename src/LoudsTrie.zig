@@ -179,8 +179,11 @@ pub fn LoudsTrieBuilder(comptime V: type) type {
             defer sbab.deinit();
 
             var labels = std.ArrayList([]const u8).init(self.allocator);
+            errdefer labels.deinit();
             var values = std.ArrayList(V).init(self.allocator);
+            errdefer values.deinit();
             var value_offsets = std.ArrayList(usize).init(self.allocator);
+            errdefer value_offsets.deinit();
             var current_offset: usize = 0;
 
             // Push super root
