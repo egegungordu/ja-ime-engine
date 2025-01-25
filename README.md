@@ -41,66 +41,88 @@ Then instantiate the dependency in your `build.zig`:
 
 ```zig
 const jaime = b.dependency("jaime", .{});
-exe.root_module.addImport("jaime", jaime.module("jaime"));
+exe.root_module.addImport("kana", jaime.module("kana"));         // For simple kana conversion
+exe.root_module.addImport("ime_core", jaime.module("ime_core")); // For IME without dictionary
+exe.root_module.addImport("ime_ipadic", jaime.module("ime_ipadic")); // For IME with IPADIC dictionary
 ```
 
 ## Usage
 
-The library provides several ways to convert romaji (Latin characters) to hiragana:
+The library provides three modules for different use cases:
 
-### Quick Conversion Functions
+### 1. Kana Module - Simple Conversions
 
-For simple one-off conversions, use these helper functions:
+For simple romaji to hiragana conversions without IME functionality:
 
 ```zig
-const jaime = @import("jaime");
+const kana = @import("kana");
 
 // Using a provided buffer (no allocations)
 var buf: [100]u8 = undefined;
-const result = try jaime.bufConvert(&buf, "konnnichiha");
+const result = try kana.convertBuf(&buf, "konnnichiha");
 try std.testing.expectEqualStrings("こんにちは", result);
 
 // Using an allocator (returns owned slice)
-const result2 = try jaime.allocConvert(allocator, "konnnichiha");
+const result2 = try kana.convert(allocator, "konnnichiha");
 defer allocator.free(result2);
 try std.testing.expectEqualStrings("こんにちは", result2);
 ```
 
-### Interactive IME
+### 2. IME IPADIC Module - Full Featured IME
 
-For interactive input handling, you can use the IME type which supports both owned (ArrayList) and borrowed (fixed-size) buffers:
+For applications that want to use the full-featured IME with the IPADIC dictionary:
 
 ```zig
-const jaime = @import("jaime");
+const ime_ipadic = @import("ime_ipadic");
 
 // Using owned buffer (with allocator)
-var ime = jaime.Ime(.owned).init(allocator);
-defer ime.deinit();  // deinit required for owned buffers
+var ime = ime_ipadic.ImeIpadic(.owned).init(allocator);
+defer ime.deinit();
 
 // Using borrowed buffer (fixed size, no allocations)
 var buf: [100]u8 = undefined;
-var ime = jaime.Ime(.borrowed).init(&buf);
-// no deinit needed for borrowed buffers
+var ime = ime_ipadic.ImeIpadic(.borrowed).init(&buf);
 
-// Both versions support the same API
+// Common IME operations
 const result = try ime.insert("k");
-// result contains:
-// - deleted_codepoints: number of codepoints deleted
-// - inserted_text: the actual text that was inserted
-
 const result2 = try ime.insert("o");
 const result3 = try ime.insert("n");
 try std.testing.expectEqualStrings("こん", ime.input.buf.items());
 
 // Cursor movement and editing
 ime.moveCursorBack(1);   // Move cursor left n positions
-try ime.insert("y");    // Insert at cursor
-ime.clear();            // Clear the buffer
-ime.deleteBack();       // Delete the last character
-ime.deleteForward();    // Delete the next character
+try ime.insert("y");     // Insert at cursor
+ime.clear();             // Clear the buffer
+ime.deleteBack();        // Delete the last character
+ime.deleteForward();     // Delete the next character
 ```
 
-### WebAssembly Bindings
+Note: The IPADIC dictionary is subject to its own license terms. If you need to use a different dictionary or want to avoid IPADIC's license requirements, use the `ime_core` module with your own dictionary implementation.
+
+### 3. IME Core Module - Custom Dictionary
+
+For applications that want to use IME functionality with their own dictionary implementation:
+
+```zig
+const ime_core = @import("ime_core");
+
+// Create your own dictionary loader that implements the required interface
+const MyDictLoader = struct {
+    pub fn loadDictionary(allocator: std.mem.Allocator) !Dictionary {
+        // Your dictionary loading logic here
+    }
+
+    pub fn freeDictionary(dict: *Dictionary) void {
+        // Your dictionary cleanup logic here
+    }
+};
+
+// Use the IME with your custom dictionary
+var ime = ime_core.Ime(MyDictLoader).init(allocator);
+defer ime.deinit();
+```
+
+## WebAssembly Bindings
 
 For web applications, you can build the WebAssembly bindings:
 
@@ -200,9 +222,6 @@ zig build test --summary all
     - . -> 。
     - ? -> ？
     - [ -> 「
-- Memory management options:
-  - Owned buffer using ArrayList for dynamic sizing
-  - Borrowed buffer for fixed-size, allocation-free usage
 
 ## Contributing
 
@@ -210,4 +229,19 @@ Contributions are welcome! Please feel free to open an issue or submit a Pull Re
 
 ## Acknowledgments
 
-- Based on Google IME transliteration mappings
+- Based on [Google 日本語入力](https://www.google.co.jp/ime/) transliteration mappings
+- [mozc](https://github.com/google/mozc) - Google's open source Japanese Input Method Editor, which provided valuable insights for IME implementation
+- The following projects were used as a reference for the codebase structure:
+  - [chipz - 8-bit emulator in zig](https://github.com/floooh/chipz)
+  - [zg - Unicode text processing for zig](https://codeberg.org/atman/zg)
+
+## Further Reading & References
+
+For those interested in the data structures and algorithms used in this project, or looking to implement similar functionality, the following academic papers provide excellent background:
+
+- [Efficient dictionary and language model compression for input method editors](https://aclanthology.org/W11-3503/) - Describes techniques for compressing IME dictionaries while maintaining fast lookup times
+- [Space-efficient static trees and graphs](https://doi.org/10.1109/SFCS.1989.63533) - Introduces fundamental succinct data structure techniques that enable near-optimal space usage while supporting fast operations
+- [最小コスト法に基づく形態素解析における CPU キャッシュの効率化](https://www.anlp.jp/proceedings/annual_meeting/2023/pdf_dir/C2-4.pdf) - Discusses CPU cache optimization techniques for morphological analysis using minimum-cost methods
+- [Vibrato](https://github.com/daac-tools/vibrato) - Viterbi-based accelerated tokenizer
+- [Vaporetto: 点予測法に基づく高速な日本語トークナイザ](https://www.anlp.jp/proceedings/annual_meeting/2022/pdf_dir/D2-5.pdf) - Presents a fast tokenization approach using linear classification and point prediction methods and three novel score preprocessing techniques
+- [Vaporetto](https://github.com/daac-tools/vaporetto?tab=readme-ov-file) - Implementation of the pointwise prediction tokenizer described in the paper above

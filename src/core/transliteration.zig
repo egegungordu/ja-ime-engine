@@ -3,6 +3,7 @@ const std = @import("std");
 // based on Google IME
 
 // TODO: should probably use hashmaps because staticstringmap does eql checks on equal length strings groups
+// TODO: can also build this comptime from a text file using embedFile
 
 // zig fmt: off
 pub const transliterables = std.StaticStringMap(void).initComptime(.{

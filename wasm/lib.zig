@@ -2,7 +2,7 @@ const std = @import("std");
 
 extern "debug" fn consoleLog(arg: u32) void;
 
-const Ime = @import("ime_core.zig").Ime;
+const Ime = @import("core").ime.Ime;
 
 var ime: Ime(null) = undefined;
 

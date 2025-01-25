@@ -1,26 +1,27 @@
 const std = @import("std");
 const mem = std.mem;
-const ime_core = @import("ime_core.zig");
-const louds_trie = @import("LoudsTrie.zig");
-const LoudsTrie = louds_trie.LoudsTrie([]const u8);
-const LoudsTrieSerializer = louds_trie.LoudsTrieSerializer([]const u8);
-const LoudsTrieBuilder = louds_trie.LoudsTrieBuilder([]const u8);
+
+const core = @import("core");
+const Ime = core.ime.Ime;
+const WordEntry = core.WordEntry;
+const Dictionary = core.dictionary.Dictionary;
+const DictionarySerializer = core.dictionary.DictionarySerializer;
 
 const ipadic_bytes = @embedFile("ipadic");
 
-pub const IpadicLoader = struct {
-    pub fn loadTrie(allocator: mem.Allocator) !LoudsTrie {
+const IpadicLoader = struct {
+    pub fn loadDictionary(allocator: mem.Allocator) !Dictionary {
         var dict_fbs = std.io.fixedBufferStream(ipadic_bytes);
 
-        return try LoudsTrieSerializer.deserialize(
+        return try DictionarySerializer.deserialize(
             allocator,
             dict_fbs.reader(),
         );
     }
 
-    pub fn freeTrie(ltrie: *LoudsTrie) void {
-        ltrie.deinit();
+    pub fn freeDictionary(dict: *Dictionary) void {
+        dict.deinit();
     }
 };
 
-pub const ImeIpadic = ime_core.Ime(IpadicLoader);
+pub const ImeIpadic = Ime(IpadicLoader);
