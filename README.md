@@ -97,7 +97,8 @@ ime.deleteBack();        // Delete the last character
 ime.deleteForward();     // Delete the next character
 ```
 
-Note: The IPADIC dictionary is subject to its own license terms. If you need to use a different dictionary or want to avoid IPADIC's license requirements, use the `ime_core` module with your own dictionary implementation.
+> [!WARNING]  
+> The IPADIC dictionary is subject to its own license terms. If you need to use a different dictionary or want to avoid IPADIC's license requirements, use the `ime_core` module with your own dictionary implementation.
 
 ### 3. IME Core Module - Custom Dictionary
 
