@@ -1,6 +1,6 @@
 # Jaime
 
-A Japanese IME (Input Method Editor) engine for Zig projects, focusing on romaji to hiragana/full-width character conversion. Based on Google IME behavior.
+A Japanese IME (Input Method Editor) engine for Zig projects, focusing on romaji to hiragana/full-width character conversion. Based on Google 日本語入力 behavior.
 
 <table>
 <tr>
@@ -17,9 +17,9 @@ On the **terminal** with libvaxis
 
 On the **web** with webassembly
 
-Coming soon!
+[Online demo](https://jaime-wasm.pages.dev/)
 
-<img src=".github/assets/web-demo.jpg" width="400" alt="Web demo (AI slop)">
+<img src=".github/assets/web-demo.gif" width="400" alt="Web demo">
 
 </td>
 </tr>
@@ -211,7 +211,7 @@ zig build test --summary all
 
 ## Features
 
-- Romaji to hiragana/full-width character conversion based on Google IME mapping
+- Romaji to hiragana/full-width character conversion based on Google 日本語入力 mapping
   - Basic hiragana (あ、い、う、え、お、か、き、く...)
     - a -> あ
     - ka -> か
