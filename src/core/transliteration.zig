@@ -394,6 +394,7 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｚｚ", "っｚ" },
     .{ "ｃｃ", "っｃ" },
     .{ "ｍｍ", "っｍ" },
+    .{ "ｙｙ", "っｙ" },
 
     // n with all consonants
     .{ "ｎｋ", "んｋ" },
