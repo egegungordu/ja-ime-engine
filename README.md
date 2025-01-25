@@ -17,9 +17,9 @@ On the **terminal** with libvaxis
 
 On the **web** with webassembly
 
-Coming soon!
+[Online demo](https://jaime-wasm.pages.dev/)
 
-<img src=".github/assets/web-demo.jpg" width="400" alt="Web demo (AI slop)">
+<img src=".github/assets/web-demo.gif" width="400" alt="Web demo">
 
 </td>
 </tr>
