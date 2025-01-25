@@ -34,8 +34,6 @@ pub fn build(b: *std.Build) void {
 
     const dict_path = tools.build(b, .{
         .src_dir = "tools",
-        .target = target,
-        .optimize = optimize,
         .imports = &.{
             .{ .name = "datastructs", .module = mod_datastructs },
             .{ .name = "core", .module = mod_core },

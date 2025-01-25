@@ -29,6 +29,10 @@ Coming soon!
 
 The minimum Zig version required is 0.13.0.
 
+## Licensing Information
+
+This project includes the **IPADIC dictionary**, which is provided under the license terms stated in the accompanying `COPYING` file. The IPADIC license imposes additional restrictions and requirements on its usage and redistribution. If your application cannot comply with the terms of the IPADIC license, consider using the `ime_core` module with a custom dictionary implementation instead.
+
 ## Integrating jaime into your Zig Project
 
 You first need to add jaime as a dependency in your `build.zig.zon` file:

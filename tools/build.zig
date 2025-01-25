@@ -2,8 +2,6 @@ const std = @import("std");
 
 pub const Options = struct {
     src_dir: []const u8,
-    target: std.Build.ResolvedTarget,
-    optimize: std.builtin.OptimizeMode,
     imports: []const std.Build.Module.Import = &.{},
 };
 
@@ -11,14 +9,14 @@ pub fn build(b: *std.Build, opts: Options) std.Build.LazyPath {
     const dict_builder_exe = b.addExecutable(.{
         .name = "dictionary_builder",
         .root_source_file = b.path(b.fmt("{s}/dictionary_builder.zig", .{opts.src_dir})),
-        .target = b.host,
-        .optimize = .Debug,
+        .target = b.graph.host,
+        .optimize = .ReleaseFast,
     });
     for (opts.imports) |import| {
         dict_builder_exe.root_module.addImport(import.name, import.module);
     }
-    const combined_dictionary = b.path("src/dictionary/combined_dictionary.tsv");
-    const cost_matrix = b.path("src/dictionary/cost_matrix.tsv");
+    const combined_dictionary = b.path("dictionaries/ipadic/combined_dictionary.tsv");
+    const cost_matrix = b.path("dictionaries/ipadic/cost_matrix.tsv");
     dict_builder_exe.root_module.addAnonymousImport("combined_dictionary.tsv", .{
         .root_source_file = combined_dictionary,
     });
