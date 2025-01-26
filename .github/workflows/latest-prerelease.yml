@@ -17,6 +17,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v3
 
+      # Set up Zig
+      - name: Install Zig
+        run: |
+          curl -LO https://ziglang.org/download/0.13.0/zig-linux-x86_64-0.13.0.tar.xz
+          tar -xf zig-linux-x86_64-0.13.0.tar.xz
+          mv zig-linux-x86_64-0.13.0 zig
+
+      # Build the project
+      - name: Build with Zig
+        run: |
+          ./zig/zig build
+          ls -l zig-out/bin  # Verify the build output
+
       # Get the latest commit info
       - name: Get Commit Info
         id: commit_info
@@ -80,6 +93,14 @@ jobs:
               prerelease: true
             }')"
 
-      # Optional: Build the project or upload artifacts
-      - name: Build and Upload Artifacts (optional)
-        run: echo "Build your project or upload artifacts here"
+      # Upload the build file to the release
+      - name: Upload Build File
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            -H "Content-Type: application/wasm" \
+            --data-binary @zig-out/bin/libjaime.wasm \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets?name=libjaime.wasm"
