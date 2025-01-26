@@ -1,0 +1,85 @@
+name: Update Latest Prerelease
+
+on:
+  push:
+    branches:
+      - main # Replace with the branch you want to track
+
+permissions:
+  contents: write # Required for creating and updating releases
+
+jobs:
+  update_latest_release:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Checkout the repository
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      # Get the latest commit info
+      - name: Get Commit Info
+        id: commit_info
+        run: |
+          echo "sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
+          echo "message=$(git log -1 --pretty=%B)" >> $GITHUB_ENV
+
+      # Check if "latest" prerelease exists
+      - name: Check for Existing Latest Prerelease
+        id: check_release
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          response=$(curl -s \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/releases/tags/latest)
+          echo "$response" | jq '.id' > release_id.txt
+          if [[ $(cat release_id.txt) == "null" ]]; then
+            echo "release_exists=false" >> $GITHUB_ENV
+          else
+            echo "release_exists=true" >> $GITHUB_ENV
+            echo "release_id=$(cat release_id.txt)" >> $GITHUB_ENV
+          fi
+
+      # Create a new "latest" prerelease if it doesn't exist
+      - name: Create Latest Prerelease
+        if: env.release_exists == 'false'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -X POST \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/releases \
+            -d "$(jq -n --arg sha "$sha" --arg message "$message" '{
+              tag_name: "latest",
+              target_commitish: $sha,
+              name: "Latest Prerelease",
+              body: "Automatically updated to latest commit:\n\n\($message)",
+              draft: false,
+              prerelease: true
+            }')"
+
+      # Update the existing "latest" prerelease
+      - name: Update Existing Latest Prerelease
+        if: env.release_exists == 'true'
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          curl -X PATCH \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            https://api.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }} \
+            -d "$(jq -n --arg sha "$sha" --arg message "$message" '{
+              tag_name: "latest",
+              target_commitish: $sha,
+              name: "Latest Prerelease",
+              body: "Automatically updated to latest commit:\n\n" + $message,
+              draft: false,
+              prerelease: true
+            }')"
+
+      # Optional: Build the project or upload artifacts
+      - name: Build and Upload Artifacts (optional)
+        run: echo "Build your project or upload artifacts here"
