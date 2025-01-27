@@ -1,3 +1,2 @@
 mecab-ipadic-*/
-*.tsv
 .venv
