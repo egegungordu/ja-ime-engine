@@ -94,6 +94,12 @@ kyu きゅ
 kye きぇ
 kyo きょ
 
+gya ぎゃ
+gyi ぎぃ
+gyu ぎゅ
+gye ぎぇ
+gyo ぎょ
+
 nya にゃ
 nyi にぃ
 nyu にゅ
@@ -207,6 +213,12 @@ qi くぃ
 qu く
 qe くぇ
 qo くぉ
+
+fa ふぁ
+fi ふぃ
+fu ふ
+fe ふぇ
+fo ふぉ
 
 ja じゃ
 ji じ
