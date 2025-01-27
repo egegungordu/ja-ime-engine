@@ -7,8 +7,6 @@ const datastructs = @import("datastructs");
 const LoudsTrie = datastructs.louds_trie.LoudsTrie;
 const LoudsTrieBuilder = datastructs.louds_trie.LoudsTrieBuilder;
 
-// TODO: make the costs i16, and the ids u32
-
 /// A lattice structure representing all possible segmentations of an input string
 pub const Lattice = struct {
     const Self = @This();

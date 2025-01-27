@@ -7,8 +7,6 @@ and outputs it in a simplified TSV format with readings converted to hiragana.
 It also processes the matrix.def file to output connection costs.
 """
 
-# TODO: ADD LICENSE
-
 import os
 import glob
 import argparse

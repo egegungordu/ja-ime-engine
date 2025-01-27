@@ -9,7 +9,6 @@ const DictionarySerializer = core.dictionary.DictionarySerializer;
 const comb_dict = @embedFile("combined_dictionary.tsv");
 const cost_mat = @embedFile("cost_matrix.tsv");
 
-// TODO: use system endian for serialization endianness? (maybe not needed since we do .little read & write)
 // TODO: make this faster
 //       the hotspot is insert method in Trie.
 // currently takes 55 seconds
