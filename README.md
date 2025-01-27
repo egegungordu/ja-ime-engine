@@ -1,6 +1,22 @@
 # Jaime
 
-A Japanese IME (Input Method Editor) engine for Zig projects, focusing on romaji to hiragana/full-width character conversion. Based on Google 日本語入力 behavior.
+A headless Japanese IME (Input Method Editor) engine for Zig projects that provides:
+
+- Romaji to hiragana/katakana conversion
+
+  eiennni → えいえんに
+
+- Full-width character conversion
+
+  abc123 → ａｂｃ１２３
+
+- Dictionary-based word conversion
+
+  かんじ → 漢字
+
+- Built-in cursor and buffer management
+
+Based on Google 日本語入力 behavior.
 
 <table>
 <tr>
@@ -93,12 +109,20 @@ const result2 = try ime.insert("o");
 const result3 = try ime.insert("n");
 try std.testing.expectEqualStrings("こん", ime.input.buf.items());
 
-// Cursor movement and editing
+// Dictionary Matches
+if (ime.getMatches()) |matches| {
+    // Get suggested conversions from the dictionary
+    // Returns []WordEntry containing possible word matches
+}
+try ime.applyMatch();    // Apply the best dictionary match to the current input
+
+// Cursor Movement and Editing
 ime.moveCursorBack(1);   // Move cursor left n positions
-try ime.insert("y");     // Insert at cursor
-ime.clear();             // Clear the buffer
-ime.deleteBack();        // Delete the last character
-ime.deleteForward();     // Delete the next character
+ime.moveCursorForward(1);// Move cursor right n positions
+try ime.insert("y");     // Insert at cursor position
+ime.clear();             // Clear the input buffer
+try ime.deleteBack();    // Delete one character before cursor
+try ime.deleteForward(); // Delete one character after cursor
 ```
 
 > [!WARNING]  
