@@ -2,8 +2,7 @@ const std = @import("std");
 const mem = std.mem;
 
 const core = @import("core");
-const Ime = core.ime.Ime;
-const WordEntry = core.WordEntry;
+const ImeCore = core.ime.Ime;
 const Dictionary = core.dictionary.Dictionary;
 const DictionarySerializer = core.dictionary.DictionarySerializer;
 
@@ -24,4 +23,5 @@ const IpadicLoader = struct {
     }
 };
 
-pub const ImeIpadic = Ime(IpadicLoader);
+pub const Ime = ImeCore(IpadicLoader);
+pub const WordEntry = core.WordEntry;

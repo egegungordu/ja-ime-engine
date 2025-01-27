@@ -78,7 +78,7 @@ pub fn build(b: *std.Build) void {
     wasm.build(b, .{
         .src_dir = "wasm",
         .imports = &.{
-            .{ .name = "core", .module = mod_core },
+            .{ .name = "ime_ipadic", .module = ime_ipadic },
         },
     });
 

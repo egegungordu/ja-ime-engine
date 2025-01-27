@@ -25,7 +25,7 @@ pub fn build(b: *std.Build, opts: Options) void {
     exe.entry = .disabled;
     exe.rdynamic = true;
 
-    const number_of_pages = 2;
+    const number_of_pages = 1024;
     exe.stack_size = std.wasm.page_size;
     exe.initial_memory = std.wasm.page_size * number_of_pages;
     exe.max_memory = std.wasm.page_size * number_of_pages;

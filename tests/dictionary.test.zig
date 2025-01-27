@@ -51,7 +51,7 @@ fn createTestDictionary(allocator: mem.Allocator) !Dictionary {
     var ltrie = try bldr.build();
     errdefer ltrie.deinit();
 
-    const costs = std.ArrayList(isize).init(allocator);
+    const costs = std.ArrayList(i16).init(allocator);
 
     return .{
         .trie = ltrie,

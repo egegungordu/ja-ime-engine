@@ -136,7 +136,7 @@ For web applications, you can build the WebAssembly bindings:
 zig build
 ```
 
-For a complete example of how to use the WebAssembly bindings in a web application, check out the [web example](examples/web/index.js).
+The WebAssembly library uses the IPADIC dictionary by default. For a complete example of how to use the WebAssembly bindings in a web application, check out the [web example](examples/web/index.js).
 
 The WebAssembly library provides the following functions:
 

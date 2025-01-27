@@ -5,6 +5,7 @@ const unicode = std.unicode;
 const WordEntry = @import("WordEntry.zig");
 const Dictionary = @import("dictionary.zig").Dictionary;
 const trans = @import("transliteration.zig");
+const lattice = @import("lattice.zig");
 const datastructs = @import("datastructs");
 const utf8utils = @import("utf8utils");
 const utf8 = utf8utils.utf8;
@@ -21,6 +22,7 @@ pub fn Ime(
         allocator: mem.Allocator,
         input: Utf8Input,
         dict: ?Dictionary,
+        best_path: ?[]WordEntry,
 
         const Self = @This();
 
@@ -34,6 +36,7 @@ pub fn Ime(
                 .allocator = allocator,
                 .input = Utf8Input.init(allocator),
                 .dict = dict,
+                .best_path = null,
             };
         }
 
@@ -41,6 +44,11 @@ pub fn Ime(
             self.input.deinit();
             if (self.dict != null and @TypeOf(dict_loader) == type) {
                 dict_loader.freeDictionary(&self.dict.?);
+                self.dict = null;
+            }
+            if (self.best_path) |best_path| {
+                self.allocator.free(best_path);
+                self.best_path = null;
             }
         }
 
@@ -55,12 +63,42 @@ pub fn Ime(
             const full_width_match = try self.tryFullWidthMatch(s) orelse return null;
             const transliterable = self.peekBackTransliterable(4) orelse return full_width_match;
             var it = utf8.createUtf8ShrinkingIterator(transliterable.slice);
-            while (it.next()) |segment| {
+
+            const modification = blk: while (it.next()) |segment| {
                 if (try self.tryKanaMatch(segment)) |modification| {
-                    return modification;
+                    break :blk modification;
                 }
+            } else break :blk full_width_match;
+
+            try self.updateMatches();
+
+            return modification;
+        }
+
+        // TODO: support multiple best matches
+        pub fn getMatches(self: Self) ?[]WordEntry {
+            return self.best_path;
+        }
+
+        // TODO: this will take an index when multiple matches are supported
+        // TODO: also can return info about what kind of match it was (predictive/full etc)
+        pub fn applyMatch(self: *Self) !?MatchModification {
+            if (self.best_path) |best_path| {
+                var new_items = std.ArrayList(u8).init(self.allocator);
+                defer new_items.deinit();
+                for (best_path) |entry| {
+                    try new_items.appendSlice(entry.word);
+                }
+                var view = unicode.Utf8View.initUnchecked(self.input.buf.items);
+                var it = view.iterator();
+                var codepoint_len: usize = 0;
+                while (it.nextCodepoint()) |_| {
+                    codepoint_len += 1;
+                }
+                try self.input.replaceBack(codepoint_len, new_items.items);
+                return .{ .deleted_codepoints = codepoint_len, .inserted_text = new_items.items };
             }
-            return full_width_match;
+            return null;
         }
 
         pub fn clear(self: *Self) void {
@@ -75,12 +113,26 @@ pub fn Ime(
             self.input.moveCursorBack(n);
         }
 
-        pub fn deleteBack(self: *Self) void {
+        pub fn deleteBack(self: *Self) !void {
             self.input.deleteBack(1);
+            try self.updateMatches();
         }
 
-        pub fn deleteForward(self: *Self) void {
+        pub fn deleteForward(self: *Self) !void {
             self.input.deleteForward(1);
+            try self.updateMatches();
+        }
+
+        fn updateMatches(self: *Self) !void {
+            if (self.best_path) |best_path| {
+                self.allocator.free(best_path);
+            }
+
+            if (self.dict) |dict| {
+                var ltc = try lattice.createLattice(self.allocator, self.input.buf.items, &dict);
+                defer ltc.deinit();
+                self.best_path = try ltc.findBestPath(&dict);
+            }
         }
 
         const PeekBackTransliterableResult = struct {

@@ -12,6 +12,10 @@ interface WasmExports extends WebAssembly.Exports {
   deleteForward: () => void;
   moveCursorBack: (n: number) => void;
   moveCursorForward: (n: number) => void;
+  getMatchCount: () => number;
+  getMatchText: (index: number) => number;
+  getMatchTextLength: (index: number) => number;
+  applyMatch: () => void;
 }
 
 class JapaneseIME {
@@ -100,18 +104,67 @@ class JapaneseIME {
     if (!this.wasmInstance) throw new Error("WASM not initialized");
     (this.wasmInstance.exports as WasmExports).moveCursorForward(n);
   }
+
+  getMatches(): string[] {
+    if (!this.wasmInstance) throw new Error("WASM not initialized");
+    const exports = this.wasmInstance.exports as WasmExports;
+
+    const matchCount = exports.getMatchCount();
+    const matches: string[] = [];
+
+    for (let i = 0; i < matchCount; i++) {
+      const textLength = exports.getMatchTextLength(i);
+      const textPtr = exports.getMatchText(i);
+      const textView = new Uint8Array(
+        exports.memory.buffer,
+        textPtr,
+        textLength
+      );
+      matches.push(this.decoder.decode(textView));
+    }
+
+    return matches;
+  }
+
+  applyMatch() {
+    if (!this.wasmInstance) throw new Error("WASM not initialized");
+    const exports = this.wasmInstance.exports as WasmExports;
+    exports.applyMatch();
+
+    // Get the result
+    const deletedCodepoints = exports.getDeletedCodepoints();
+    const insertedTextLength = exports.getInsertedTextLength();
+    const insertedTextPtr = exports.getInsertedTextPointer();
+
+    // Get the inserted text
+    const insertedTextView = new Uint8Array(
+      exports.memory.buffer,
+      insertedTextPtr,
+      insertedTextLength
+    );
+    const insertedText = this.decoder.decode(insertedTextView);
+
+    return {
+      deletedCodepoints,
+      insertedText,
+    };
+  }
 }
 
 interface UseJapaneseIMEProps {
   onError?: (error: Error) => void;
 }
 
-export function useJapaneseIME({ onError }: UseJapaneseIMEProps = {}) {
+export function useJapaneseIME({ onError }: UseJapaneseIMEProps) {
   const imeRef = useRef<JapaneseIME | null>(null);
   const onErrorRef = useRef(onError);
   const [isReady, setIsReady] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const lastCursorPositionRef = useRef(0);
+  const [matches, setMatches] = useState<string[]>([]);
+  const [value, setValue] = useState("");
+  const [cursorPosition, setCursorPosition] = useState(0);
+  const inputRef = useRef<HTMLInputElement>(null);
 
   // Update the callback ref when it changes
   useEffect(() => {
@@ -140,50 +193,84 @@ export function useJapaneseIME({ onError }: UseJapaneseIMEProps = {}) {
     };
   }, []); // Remove onError from deps
 
+  const updateMatches = useCallback(() => {
+    if (!imeRef.current) return;
+    setMatches(imeRef.current.getMatches());
+  }, []);
+
   const handleKeyDown = useCallback(
     (event: React.KeyboardEvent<HTMLInputElement>) => {
       try {
         if (!imeRef.current) return;
-        const input = event.currentTarget;
+
+        if (event.key === "Enter" && matches.length > 0) {
+          event.preventDefault();
+          const result = imeRef.current.applyMatch();
+
+          // Handle deletions and insertions
+          const pos = cursorPosition;
+          let newValue = value;
+          let newPos = pos;
+
+          if (result.deletedCodepoints > 0) {
+            const deleteStart = pos - result.deletedCodepoints;
+            const deleteEnd = pos;
+            newValue = value.slice(0, deleteStart) + value.slice(deleteEnd);
+            newPos = deleteStart;
+          }
+
+          newValue =
+            newValue.slice(0, newPos) +
+            result.insertedText +
+            newValue.slice(newPos);
+          newPos = newPos + [...result.insertedText].length;
+
+          setValue(newValue);
+          setCursorPosition(newPos);
+          lastCursorPositionRef.current = newPos;
+          setMatches([]);
+          return;
+        }
 
         switch (event.key) {
           case "Backspace":
             event.preventDefault();
             imeRef.current.deleteBack();
-            const deleteBackPos = input.selectionStart! - 1;
+            const deleteBackPos = cursorPosition - 1;
             if (deleteBackPos >= 0) {
-              input.value =
-                input.value.slice(0, deleteBackPos) +
-                input.value.slice(deleteBackPos + 1);
-              input.selectionStart = input.selectionEnd = deleteBackPos;
+              setValue(
+                value.slice(0, deleteBackPos) + value.slice(deleteBackPos + 1)
+              );
+              setCursorPosition(deleteBackPos);
+              lastCursorPositionRef.current = deleteBackPos;
             }
+            updateMatches();
             break;
           case "Delete":
             event.preventDefault();
             imeRef.current.deleteForward();
-            const deleteForwardPos = input.selectionStart!;
-            if (deleteForwardPos < input.value.length) {
-              input.value =
-                input.value.slice(0, deleteForwardPos) +
-                input.value.slice(deleteForwardPos + 1);
-              input.selectionStart = input.selectionEnd = deleteForwardPos;
+            if (cursorPosition < value.length) {
+              setValue(
+                value.slice(0, cursorPosition) + value.slice(cursorPosition + 1)
+              );
             }
+            updateMatches();
             break;
           case "ArrowLeft":
             event.preventDefault();
             imeRef.current.moveCursorBack(1);
-            const newLeftPos = input.selectionStart! - 1;
+            const newLeftPos = cursorPosition - 1;
             if (newLeftPos >= 0) {
-              input.selectionStart = input.selectionEnd = newLeftPos;
+              setCursorPosition(newLeftPos);
               lastCursorPositionRef.current = newLeftPos;
             }
             break;
           case "ArrowRight":
             event.preventDefault();
             imeRef.current.moveCursorForward(1);
-            const newRightPos = input.selectionStart! + 1;
-            if (newRightPos <= input.value.length) {
-              input.selectionStart = input.selectionEnd = newRightPos;
+            const newRightPos = cursorPosition + 1;
+            if (newRightPos <= value.length) {
+              setCursorPosition(newRightPos);
               lastCursorPositionRef.current = newRightPos;
             }
             break;
@@ -192,7 +279,7 @@ export function useJapaneseIME({ onError }: UseJapaneseIMEProps = {}) {
         onErrorRef.current?.(error as Error);
       }
     },
-    [] // Remove onError from deps
+    [matches, value, cursorPosition, updateMatches] // Add updateMatches to dependencies
   );
 
   const handleBeforeInput = useCallback(
@@ -201,35 +288,38 @@ export function useJapaneseIME({ onError }: UseJapaneseIMEProps = {}) {
         if (!imeRef.current) return;
         if (event.type === "beforeinput") {
           event.preventDefault();
-          const input = event.currentTarget;
           const result = imeRef.current.insert(event.data);
 
-          const pos = input.selectionStart!;
+          // Handle deletions and insertions
+          const pos = cursorPosition;
+          let newValue = value;
+          let newPos = pos;
 
-          // Handle deletions first
           if (result.deletedCodepoints > 0) {
             const deleteStart = pos - result.deletedCodepoints;
             const deleteEnd = pos;
-            input.value =
-              input.value.slice(0, deleteStart) + input.value.slice(deleteEnd);
-            input.selectionStart = input.selectionEnd = deleteStart;
+            newValue = value.slice(0, deleteStart) + value.slice(deleteEnd);
+            newPos = deleteStart;
           }
 
-          // Then insert the new text
-          const currentPos = input.selectionStart!;
-          input.value =
-            input.value.slice(0, currentPos) +
+          newValue =
+            newValue.slice(0, newPos) +
             result.insertedText +
-            input.value.slice(currentPos);
-          const newPos = currentPos + [...result.insertedText].length;
-          input.selectionStart = input.selectionEnd = newPos;
+            newValue.slice(newPos);
+          newPos = newPos + [...result.insertedText].length;
+
+          setValue(newValue);
+          setCursorPosition(newPos);
           lastCursorPositionRef.current = newPos;
+
+          // Update matches after input
+          updateMatches();
         }
       } catch (error) {
         onErrorRef.current?.(error as Error);
       }
     },
-    [] // Remove onError from deps
+    [value, cursorPosition, updateMatches] // Add value and cursorPosition to dependencies
   );
 
   const handleClick = useCallback(
@@ -254,11 +344,29 @@ export function useJapaneseIME({ onError }: UseJapaneseIMEProps = {}) {
     [] // Remove onError from deps
   );
 
+  // Update cursor position after value changes
+  useEffect(() => {
+    if (inputRef.current) {
+      inputRef.current.selectionStart = inputRef.current.selectionEnd =
+        cursorPosition;
+    }
+  }, [cursorPosition]);
+
   return {
+    // Input props (to be spread)
+    inputProps: {
+      ref: inputRef,
+      value,
+      onChange: (e: React.ChangeEvent<HTMLInputElement>) =>
+        setValue(e.target.value),
+      onKeyDown: handleKeyDown,
+      onBeforeInput: handleBeforeInput,
+      onClick: handleClick,
+      disabled: !isReady,
+    },
+    // Other values (not to be spread)
     isReady,
     isLoading,
-    handleKeyDown,
-    handleBeforeInput,
-    handleClick,
+    matches,
   };
 }
