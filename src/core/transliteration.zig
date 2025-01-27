@@ -156,7 +156,6 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｗｏ", "を" },
     .{ "ｎｎ", "ん" },
 
-    // Voiced consonants
     .{ "ｇａ", "が" },
     .{ "ｇｉ", "ぎ" },
     .{ "ｇｕ", "ぐ" },
@@ -187,7 +186,6 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｐｅ", "ぺ" },
     .{ "ｐｏ", "ぽ" },
 
-    // Double consonants
     .{ "ｋｙａ", "きゃ" },
     .{ "ｋｙｉ", "きぃ"},
     .{ "ｋｙｕ", "きゅ" },
@@ -320,6 +318,12 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｑｅ", "くぇ" },
     .{ "ｑｏ", "くぉ" },
 
+    .{ "ｆａ", "ふぁ" },
+    .{ "ｆｉ", "ふぃ" },
+    .{ "ｆｕ", "ふ" },
+    .{ "ｆｅ", "ふぇ" },
+    .{ "ｆｏ", "ふぉ" },
+
     .{ "ｊａ", "じゃ" },
     .{ "ｊｉ", "じ" },
     .{ "ｊｕ", "じゅ" },
@@ -338,7 +342,6 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
 
     .{ "ｙｅ", "いぇ" },
 
-    // small kana 'x'
     .{ "ｘｔｓｕ", "っ" },
 
     .{ "ｘｋｅ", "ヶ" },
@@ -356,7 +359,6 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｘｙｅ", "ぇ" },
     .{ "ｘｙｏ", "ょ" },
 
-    // small kana with 'l'
     .{ "ｌｔｓｕ", "っ" },
 
     .{ "ｌｋｅ", "ヶ" },
@@ -374,8 +376,6 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｌｙｅ", "ぇ" },
     .{ "ｌｙｏ", "ょ" },
 
-    // sokuon with repetition
-    // for all consonants
     .{ "ｋｋ", "っｋ" },
     .{ "ｑｑ", "っｑ" },
     .{ "ｓｓ", "っｓ" },
@@ -396,7 +396,6 @@ pub const transliteration_map = std.StaticStringMap([]const u8).initComptime(.{
     .{ "ｍｍ", "っｍ" },
     .{ "ｙｙ", "っｙ" },
 
-    // n with all consonants
     .{ "ｎｋ", "んｋ" },
     .{ "ｎｑ", "んｑ" },
     .{ "ｎｓ", "んｓ" },
