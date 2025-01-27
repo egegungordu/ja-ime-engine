@@ -19,16 +19,15 @@ pub fn main() !void {
     const allocator = arena.allocator();
 
     var cost_it = std.mem.tokenizeAny(u8, cost_mat, "\n\r\t");
-    const left_count = try std.fmt.parseInt(usize, cost_it.next().?, 10);
-    const right_count = try std.fmt.parseInt(usize, cost_it.next().?, 10);
-    var cost_arr = try std.ArrayList(isize).initCapacity(allocator, left_count * right_count);
+    const left_count = try std.fmt.parseInt(u32, cost_it.next().?, 10);
+    const right_count = try std.fmt.parseInt(u32, cost_it.next().?, 10);
+    var cost_arr = try std.ArrayList(i16).initCapacity(allocator, left_count * right_count);
     defer cost_arr.deinit();
 
     for (0..left_count * right_count) |_| {
         _ = cost_it.next();
         _ = cost_it.next();
-        const t = cost_it.next().?;
-        cost_arr.appendAssumeCapacity(try std.fmt.parseInt(isize, t, 10));
+        cost_arr.appendAssumeCapacity(try std.fmt.parseInt(i16, cost_it.next().?, 10));
     }
 
     var bldr = LoudsTrieBuilder.init(allocator);
@@ -37,9 +36,9 @@ pub fn main() !void {
     var dict_it = std.mem.tokenizeAny(u8, comb_dict, "\n\r\t");
     while (true) {
         const reading = dict_it.next() orelse break;
-        const left_id = try std.fmt.parseInt(usize, dict_it.next().?, 10);
-        const right_id = try std.fmt.parseInt(usize, dict_it.next().?, 10);
-        const cost = try std.fmt.parseInt(isize, dict_it.next().?, 10);
+        const left_id = try std.fmt.parseInt(u32, dict_it.next().?, 10);
+        const right_id = try std.fmt.parseInt(u32, dict_it.next().?, 10);
+        const cost = try std.fmt.parseInt(i16, dict_it.next().?, 10);
         const word = dict_it.next().?;
         try bldr.insert(reading, .{
             .word = word,

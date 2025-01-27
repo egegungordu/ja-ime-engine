@@ -9,4 +9,5 @@ comptime {
     _ = @import("utf8.test.zig");
     _ = @import("Utf8Input.test.zig");
     _ = @import("kana.test.zig");
+    _ = @import("lattice.test.zig");
 }

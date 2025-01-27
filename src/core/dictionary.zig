@@ -9,17 +9,23 @@ const SuccinctBitArrayBuilder = datastructs.succinct_bit_array.SuccinctBitArrayB
 const Louds = datastructs.louds.Louds;
 const BitArray = datastructs.BitArray;
 
+// TODO: add a mapping layer, that will map input hiragana to smaller values
+// so the trie labels will be smaller
+// example: あ -> 0
+//          い -> 0
+//          ...
+
 pub const Dictionary = struct {
     trie: LoudsTrie(WordEntry),
-    costs: std.ArrayList(isize),
-    right_count: usize,
+    costs: std.ArrayList(i16),
+    right_count: u32,
 
     pub fn deinit(self: *Dictionary) void {
         self.trie.deinit();
         self.costs.deinit();
     }
 
-    pub fn getCost(self: Dictionary, left_id: usize, right_id: usize) isize {
+    pub fn getCost(self: Dictionary, left_id: u32, right_id: u32) i16 {
         return self.costs.items[self.right_count * left_id + right_id];
     }
 };
@@ -33,7 +39,10 @@ pub const Dictionary = struct {
 /// for the entire program lifetime.
 pub const DictionarySerializer = struct {
     const Self = @This();
+    const wire_endian = .little;
 
+    /// Note: For cross-platform compatibility, usize and isize values are truncated to 32 bits during serialization
+    /// and expanded back during deserialization. This means values must fit within 32 bits to be correctly serialized.
     pub fn serialize(dict: *const Dictionary, writer: anytype) !void {
         // dict.ltrie.labels
         try serializeStringArrayList(&dict.trie.labels, writer);
@@ -44,9 +53,9 @@ pub const DictionarySerializer = struct {
         // dict.ltrie.louds.sba
         try serializeSuccinctBitArray(&dict.trie.louds.sba, writer);
         // dict.costs
-        try serializeIntArrayList(isize, &dict.costs, writer);
+        try serializeIntArrayList(i16, &dict.costs, writer);
         // dict.right_count
-        try writer.writeInt(usize, dict.right_count, .little);
+        try serializeInt(u32, dict.right_count, writer);
     }
 
     pub fn deserialize(allocator: mem.Allocator, reader: anytype) !Dictionary {
@@ -58,9 +67,9 @@ pub const DictionarySerializer = struct {
         errdefer value_offsets.deinit();
         var louds_sba = try deserializeSuccinctBitArray(allocator, reader);
         errdefer louds_sba.deinit();
-        var costs = try deserializeIntArrayList(isize, allocator, reader);
+        var costs = try deserializeIntArrayList(i16, allocator, reader);
         errdefer costs.deinit();
-        const right_count = try reader.readInt(usize, .little);
+        const right_count = try deserializeInt(u32, reader);
         return .{
             .trie = .{
                 .labels = labels,
@@ -75,12 +84,12 @@ pub const DictionarySerializer = struct {
 
     fn serializeStringArrayList(list: *const std.ArrayList([]const u8), writer: anytype) !void {
         // First write the number of elements in the array
-        try writer.writeInt(usize, list.items.len, .little);
+        try serializeInt(usize, list.items.len, writer);
 
         // For each element (which is []const u8)
         for (list.items) |str| {
             // Write number of bytes in this array
-            try writer.writeInt(usize, str.len, .little);
+            try serializeInt(usize, str.len, writer);
 
             try writer.writeAll(str);
         }
@@ -88,7 +97,7 @@ pub const DictionarySerializer = struct {
 
     fn serializeWordEntryArrayList(list: *const std.ArrayList(WordEntry), writer: anytype) !void {
         // First write the number of elements in the array
-        try writer.writeInt(usize, list.items.len, .little);
+        try serializeInt(usize, list.items.len, writer);
 
         // For each element (which is WordEntry)
         for (list.items) |we| {
@@ -97,11 +106,11 @@ pub const DictionarySerializer = struct {
     }
 
     fn serializeWordEntry(we: WordEntry, writer: anytype) !void {
-        try writer.writeInt(usize, we.word.len, .little);
+        try serializeInt(usize, we.word.len, writer);
         try writer.writeAll(we.word);
-        try writer.writeInt(usize, we.left_id, .little);
-        try writer.writeInt(usize, we.right_id, .little);
-        try writer.writeInt(isize, we.cost, .little);
+        try serializeInt(u32, we.left_id, writer);
+        try serializeInt(u32, we.right_id, writer);
+        try serializeInt(i16, we.cost, writer);
     }
 
     fn serializeSuccinctBitArray(sba: *const SuccinctBitArray(32), writer: anytype) !void {
@@ -113,19 +122,27 @@ pub const DictionarySerializer = struct {
 
     fn serializeBitArray(array: *const BitArray, writer: anytype) !void {
         // bit_len: usize,
-        try writer.writeInt(usize, array.bit_len, .little);
+        try serializeInt(usize, array.bit_len, writer);
         // bytes: std.ArrayList(u8),
         try serializeIntArrayList(u8, &array.bytes, writer);
     }
 
+    fn serializeInt(comptime T: type, value: T, writer: anytype) !void {
+        switch (T) {
+            usize => try writer.writeInt(u32, @truncate(value), wire_endian),
+            isize => try writer.writeInt(i32, @truncate(value), wire_endian),
+            else => try writer.writeInt(T, value, wire_endian),
+        }
+    }
+
     fn serializeIntArrayList(comptime T: type, list: *const std.ArrayList(T), writer: anytype) !void {
         // First write the number of elements in the array
-        try writer.writeInt(usize, list.items.len, .little);
+        try serializeInt(usize, list.items.len, writer);
 
         // For each element (which is usize)
         for (list.items) |element| {
             // Write it
-            try writer.writeInt(T, element, .little);
+            try serializeInt(T, element, writer);
         }
     }
 
@@ -134,7 +151,7 @@ pub const DictionarySerializer = struct {
         errdefer list.deinit();
 
         // Read number of elements
-        const num_elements = try reader.readInt(usize, .little);
+        const num_elements = try deserializeInt(usize, reader);
 
         // Allocate space for all elements
         try list.ensureTotalCapacity(num_elements);
@@ -143,7 +160,7 @@ pub const DictionarySerializer = struct {
         var i: usize = 0;
         while (i < num_elements) : (i += 1) {
             // Read string length
-            const str_len = try reader.readInt(usize, .little);
+            const str_len = try deserializeInt(usize, reader);
 
             // Read string
             const str = reader.context.buffer[reader.context.pos .. reader.context.pos + str_len];
@@ -160,7 +177,7 @@ pub const DictionarySerializer = struct {
         errdefer list.deinit();
 
         // Read number of elements
-        const num_elements = try reader.readInt(usize, .little);
+        const num_elements = try deserializeInt(usize, reader);
 
         // Allocate space for all elements
         try list.ensureTotalCapacity(num_elements);
@@ -176,12 +193,12 @@ pub const DictionarySerializer = struct {
     }
 
     fn deserializeWordEntry(reader: anytype) !WordEntry {
-        const str_len = try reader.readInt(usize, .little);
+        const str_len = try deserializeInt(usize, reader);
         const word = reader.context.buffer[reader.context.pos .. reader.context.pos + str_len];
         try reader.skipBytes(str_len, .{});
-        const left_id = try reader.readInt(usize, .little);
-        const right_id = try reader.readInt(usize, .little);
-        const cost = try reader.readInt(isize, .little);
+        const left_id = try deserializeInt(u32, reader);
+        const right_id = try deserializeInt(u32, reader);
+        const cost = try deserializeInt(i16, reader);
         return .{
             .word = word,
             .left_id = left_id,
@@ -199,8 +216,16 @@ pub const DictionarySerializer = struct {
 
     fn deserializeBitArray(allocator: mem.Allocator, reader: anytype) !BitArray {
         return .{
-            .bit_len = try reader.readInt(usize, .little),
+            .bit_len = try deserializeInt(usize, reader),
             .bytes = try deserializeIntArrayList(u8, allocator, reader),
+        };
+    }
+
+    fn deserializeInt(comptime T: type, reader: anytype) !T {
+        return switch (T) {
+            usize => @intCast(try reader.readInt(u32, wire_endian)),
+            isize => @intCast(try reader.readInt(i32, wire_endian)),
+            else => try reader.readInt(T, wire_endian),
         };
     }
 
@@ -209,7 +234,7 @@ pub const DictionarySerializer = struct {
         errdefer list.deinit();
 
         // First read the number of elements in the array
-        const num_elements = try reader.readInt(usize, .little);
+        const num_elements = try deserializeInt(usize, reader);
 
         // Allocate space for all elements
         try list.ensureTotalCapacity(num_elements);
@@ -218,7 +243,7 @@ pub const DictionarySerializer = struct {
         var i: usize = 0;
         while (i < num_elements) : (i += 1) {
             // Read the element
-            const element = try reader.readInt(T, .little);
+            const element = try deserializeInt(T, reader);
 
             try list.append(element);
         }
