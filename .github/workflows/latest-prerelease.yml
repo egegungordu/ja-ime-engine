@@ -70,7 +70,7 @@ jobs:
               tag_name: "latest",
               target_commitish: $sha,
               name: "Latest Prerelease",
-              body: "Automatically updated to latest commit:\n\n" + $message,
+              body: "Automatically updated to latest commit:\n\n\($message)",
               draft: false,
               prerelease: true
             }')"
@@ -90,7 +90,7 @@ jobs:
               tag_name: "latest",
               target_commitish: $sha,
               name: "Latest Prerelease",
-              body: "Automatically updated to latest commit:\n\n" + $message,
+              body: "Automatically updated to latest commit:\n\n\($message)",
               draft: false,
               prerelease: true
             }')"
@@ -100,6 +100,22 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # Get existing asset id if it exists
+          asset_id=$(curl -s \
+            -H "Authorization: token $GITHUB_TOKEN" \
+            -H "Accept: application/vnd.github+json" \
+            "https://api.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets" \
+            | jq '.[] | select(.name=="libjaime.wasm") | .id')
+
+          # Delete existing asset if it exists
+          if [ ! -z "$asset_id" ]; then
+            curl -X DELETE \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/assets/$asset_id"
+          fi
+
+          # Upload new asset
           curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
