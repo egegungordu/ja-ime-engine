@@ -30,6 +30,19 @@ jobs:
           ./zig/zig build
           ls -l zig-out/bin  # Verify the build output
 
+      # Create source archives
+      - name: Create Source Archives
+        run: |
+          # Create a temporary directory for the release
+          mkdir release
+          # Copy all files except .git and release directory
+          rsync -av --exclude='.git' --exclude='release' . release/jaime
+          # Create archives
+          cd release
+          tar -czf jaime.tar.gz jaime
+          zip -r jaime.zip jaime
+          cd ..
+
       # Get the latest commit info
       - name: Get Commit Info
         id: commit_info
@@ -100,25 +113,41 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get existing asset id if it exists
-          asset_id=$(curl -s \
+          # Get existing asset ids if they exist
+          assets=$(curl -s \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets" \
-            | jq '.[] | select(.name=="libjaime.wasm") | .id')
+            "https://api.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets")
 
-          # Delete existing asset if it exists
-          if [ ! -z "$asset_id" ]; then
-            curl -X DELETE \
+          wasm_id=$(echo "$assets" | jq '.[] | select(.name=="libjaime.wasm") | .id')
+          tar_id=$(echo "$assets" | jq '.[] | select(.name=="jaime.tar.gz") | .id')
+          zip_id=$(echo "$assets" | jq '.[] | select(.name=="jaime.zip") | .id')
+
+          # Delete existing assets if they exist
+          for asset_id in $wasm_id $tar_id $zip_id; do
+            if [ ! -z "$asset_id" ]; then
+              curl -X DELETE \
+                -H "Authorization: token $GITHUB_TOKEN" \
+                -H "Accept: application/vnd.github+json" \
+                "https://api.github.com/repos/${{ github.repository }}/releases/assets/$asset_id"
+            fi
+          done
+
+          # Upload new assets
+          for file in zig-out/bin/libjaime.wasm release/jaime.tar.gz release/jaime.zip; do
+            content_type="application/octet-stream"
+            if [[ "$file" == *.wasm ]]; then
+              content_type="application/wasm"
+            elif [[ "$file" == *.tar.gz ]]; then
+              content_type="application/gzip"
+            elif [[ "$file" == *.zip ]]; then
+              content_type="application/zip"
+            fi
+
+            curl -X POST \
               -H "Authorization: token $GITHUB_TOKEN" \
               -H "Accept: application/vnd.github+json" \
-              "https://api.github.com/repos/${{ github.repository }}/releases/assets/$asset_id"
-          fi
-
-          # Upload new asset
-          curl -X POST \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            -H "Content-Type: application/wasm" \
-            --data-binary @zig-out/bin/libjaime.wasm \
-            "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets?name=libjaime.wasm"
+              -H "Content-Type: $content_type" \
+              --data-binary @"$file" \
+              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets?name=$(basename $file)"
+          done
