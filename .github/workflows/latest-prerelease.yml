@@ -30,19 +30,6 @@ jobs:
           ./zig/zig build
           ls -l zig-out/bin  # Verify the build output
 
-      # Create source archives
-      - name: Create Source Archives
-        run: |
-          # Create a temporary directory for the release
-          mkdir release
-          # Copy all files except .git and release directory
-          rsync -av --exclude='.git' --exclude='release' . release/jaime
-          # Create archives
-          cd release
-          tar -czf jaime.tar.gz jaime
-          zip -r jaime.zip jaime
-          cd ..
-
       # Get the latest commit info
       - name: Get Commit Info
         id: commit_info
@@ -50,9 +37,8 @@ jobs:
           echo "sha=$(git rev-parse HEAD)" >> $GITHUB_ENV
           echo "message=$(git log -1 --pretty=%B | base64 -w 0)" >> $GITHUB_ENV
 
-      # Check if "latest" prerelease exists
-      - name: Check for Existing Latest Prerelease
-        id: check_release
+      # Check if "latest" prerelease exists and delete it
+      - name: Check and Delete Existing Latest Prerelease
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
@@ -60,22 +46,29 @@ jobs:
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/releases/tags/latest)
-          echo "$response" | jq '.id' > release_id.txt
-          if [[ $(cat release_id.txt) == "null" ]]; then
-            echo "release_exists=false" >> $GITHUB_ENV
-          else
-            echo "release_exists=true" >> $GITHUB_ENV
-            echo "release_id=$(cat release_id.txt)" >> $GITHUB_ENV
+          release_id=$(echo "$response" | jq '.id')
+
+          if [[ "$release_id" != "null" ]]; then
+            # Delete the release
+            curl -X DELETE \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/releases/$release_id"
+            
+            # Delete the tag
+            curl -X DELETE \
+              -H "Authorization: token $GITHUB_TOKEN" \
+              -H "Accept: application/vnd.github+json" \
+              "https://api.github.com/repos/${{ github.repository }}/git/refs/tags/latest"
           fi
 
-      # Create a new "latest" prerelease if it doesn't exist
+      # Create a new "latest" prerelease
       - name: Create Latest Prerelease
-        if: env.release_exists == 'false'
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           decoded_message=$(echo "$message" | base64 -d)
-          curl -X POST \
+          response=$(curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
             https://api.github.com/repos/${{ github.repository }}/releases \
@@ -86,68 +79,17 @@ jobs:
               body: "Automatically updated to latest commit:\n\n\($message)",
               draft: false,
               prerelease: true
-            }')"
-
-      # Update the existing "latest" prerelease
-      - name: Update Existing Latest Prerelease
-        if: env.release_exists == 'true'
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: |
-          decoded_message=$(echo "$message" | base64 -d)
-          curl -X PATCH \
-            -H "Authorization: token $GITHUB_TOKEN" \
-            -H "Accept: application/vnd.github+json" \
-            https://api.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }} \
-            -d "$(jq -n --arg sha "$sha" --arg message "$decoded_message" '{
-              tag_name: "latest",
-              target_commitish: $sha,
-              name: "Latest Prerelease",
-              body: "Automatically updated to latest commit:\n\n\($message)",
-              draft: false,
-              prerelease: true
-            }')"
+            }')")
+          echo "release_id=$(echo "$response" | jq '.id')" >> $GITHUB_ENV
 
       # Upload the build file to the release
       - name: Upload Build File
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          # Get existing asset ids if they exist
-          assets=$(curl -s \
+          curl -X POST \
             -H "Authorization: token $GITHUB_TOKEN" \
             -H "Accept: application/vnd.github+json" \
-            "https://api.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets")
-
-          wasm_id=$(echo "$assets" | jq '.[] | select(.name=="libjaime.wasm") | .id')
-          tar_id=$(echo "$assets" | jq '.[] | select(.name=="jaime.tar.gz") | .id')
-          zip_id=$(echo "$assets" | jq '.[] | select(.name=="jaime.zip") | .id')
-
-          # Delete existing assets if they exist
-          for asset_id in $wasm_id $tar_id $zip_id; do
-            if [ ! -z "$asset_id" ]; then
-              curl -X DELETE \
-                -H "Authorization: token $GITHUB_TOKEN" \
-                -H "Accept: application/vnd.github+json" \
-                "https://api.github.com/repos/${{ github.repository }}/releases/assets/$asset_id"
-            fi
-          done
-
-          # Upload new assets
-          for file in zig-out/bin/libjaime.wasm release/jaime.tar.gz release/jaime.zip; do
-            content_type="application/octet-stream"
-            if [[ "$file" == *.wasm ]]; then
-              content_type="application/wasm"
-            elif [[ "$file" == *.tar.gz ]]; then
-              content_type="application/gzip"
-            elif [[ "$file" == *.zip ]]; then
-              content_type="application/zip"
-            fi
-
-            curl -X POST \
-              -H "Authorization: token $GITHUB_TOKEN" \
-              -H "Accept: application/vnd.github+json" \
-              -H "Content-Type: $content_type" \
-              --data-binary @"$file" \
-              "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets?name=$(basename $file)"
-          done
+            -H "Content-Type: application/wasm" \
+            --data-binary @zig-out/bin/libjaime.wasm \
+            "https://uploads.github.com/repos/${{ github.repository }}/releases/${{ env.release_id }}/assets?name=libjaime.wasm"
