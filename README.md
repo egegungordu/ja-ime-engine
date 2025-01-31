@@ -106,12 +106,12 @@ For applications that want to use the full-featured IME with the IPADIC dictiona
 const ime_ipadic = @import("ime_ipadic");
 
 // Using owned buffer (with allocator)
-var ime = ime_ipadic.ImeIpadic(.owned).init(allocator);
+var ime = ime_ipadic.Ime(.owned).init(allocator);
 defer ime.deinit();
 
 // Using borrowed buffer (fixed size, no allocations)
 var buf: [100]u8 = undefined;
-var ime = ime_ipadic.ImeIpadic(.borrowed).init(&buf);
+var ime = ime_ipadic.Ime(.borrowed).init(&buf);
 
 // Common IME operations
 const result = try ime.insert("k");
