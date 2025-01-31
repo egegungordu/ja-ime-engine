@@ -51,10 +51,20 @@ This project includes the **IPADIC dictionary**, which is provided under the lic
 
 ## Integrating jaime into your Zig Project
 
-You first need to add jaime as a dependency in your `build.zig.zon` file:
+You can add jaime as a dependency in your `build.zig.zon` file in two ways:
+
+### Development Version
 
 ```bash
+# Get the latest development version from main branch
 zig fetch --save git+https://github.com/egegungordu/jaime
+```
+
+### Release Version
+
+```bash
+# Get a specific release version (replace x.y.z with desired version)
+zig fetch --save https://github.com/egegungordu/jaime/archive/refs/tags/vx.y.z.tar.gz
 ```
 
 Then instantiate the dependency in your `build.zig`:
